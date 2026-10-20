@@ -33,6 +33,7 @@ class SquatStateMachine(
     private var hipsReachedKneeLevel: Boolean = false
     private var minKneeAngleInRep: Float = 180.0f
     private var trackingLostDuringRep: Boolean = false
+    private var repStartTimeMs: Long = 0L
 
     // Event streaming
     private val _events = MutableSharedFlow<SquatEvent>(extraBufferCapacity = 64)
@@ -68,12 +69,13 @@ class SquatStateMachine(
         hipsReachedKneeLevel = false
         minKneeAngleInRep = 180.0f
         trackingLostDuringRep = false
+        repStartTimeMs = 0L
     }
 
     /**
      * Processes features extracted from the current frame.
      */
-    fun processFrame(features: PoseFeatures) {
+    fun processFrame(features: PoseFeatures, timestampMs: Long = System.currentTimeMillis()) {
         val kneeAngle = features.smoothedKneeAngle
         val hipsBelowKnees = features.areHipsAtOrBelowKnees
         val fullBodyVisible = features.isFullBodyVisible
@@ -105,6 +107,7 @@ class SquatStateMachine(
                     hipsReachedKneeLevel = hipsBelowKnees
                     minKneeAngleInRep = kneeAngle
                     trackingLostDuringRep = false
+                    repStartTimeMs = timestampMs
                     transitionTo(SquatState.DESCENDING)
                 }
             }
@@ -144,17 +147,31 @@ class SquatStateMachine(
 
                 // Returned to standing upright
                 if (kneeAngle >= (config.standingKneeAngle - config.hysteresis)) {
-                    validateAndFinishRep()
+                    validateAndFinishRep(timestampMs)
                     transitionTo(SquatState.STANDING)
                 }
             }
         }
     }
 
-    private fun validateAndFinishRep() {
+    private fun validateAndFinishRep(timestampMs: Long) {
         if (trackingLostDuringRep) {
             lastRejectionReason = RejectionReason.TRACKING_LOST_DURING_REP
             emitEvent(SquatEvent.RepRejected(RejectionReason.TRACKING_LOST_DURING_REP))
+            return
+        }
+
+        val repDurationMs = if (repStartTimeMs > 0L) timestampMs - repStartTimeMs else 0L
+
+        if (repDurationMs < config.minRepDurationMs) {
+            lastRejectionReason = RejectionReason.TOO_FAST
+            emitEvent(SquatEvent.RepRejected(RejectionReason.TOO_FAST))
+            return
+        }
+
+        if (repDurationMs > config.maxRepDurationMs) {
+            lastRejectionReason = RejectionReason.TOO_SLOW
+            emitEvent(SquatEvent.RepRejected(RejectionReason.TOO_SLOW))
             return
         }
 

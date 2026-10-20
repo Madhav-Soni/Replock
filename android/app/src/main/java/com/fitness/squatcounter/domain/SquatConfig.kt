@@ -39,5 +39,15 @@ data class SquatConfig(
      * Exponential Moving Average (EMA) smoothing factor: 0 < alpha <= 1.
      * Alpha = 0.35 provides great jitter reduction while remaining highly responsive at 10-15 fps.
      */
-    val smoothingAlpha: Float = 0.35f
+    val smoothingAlpha: Float = 0.35f,
+
+    /**
+     * Minimum duration (in ms) for a valid rep. Reps completed faster are rejected with TOO_FAST.
+     */
+    val minRepDurationMs: Long = 800L,
+
+    /**
+     * Maximum duration (in ms) for a valid rep. Reps taking longer are rejected with TOO_SLOW.
+     */
+    val maxRepDurationMs: Long = 8000L
 )
