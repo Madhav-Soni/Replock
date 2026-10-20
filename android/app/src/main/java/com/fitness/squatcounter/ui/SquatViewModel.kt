@@ -31,7 +31,8 @@ data class SquatUiState(
     val fps: Int = 0,
     val isFullBodyVisible: Boolean = false,
     val landmarks: List<LandmarkPoint> = emptyList(),
-    val errorMessage: String? = null
+    val errorMessage: String? = null,
+    val creditBalanceSeconds: Int = 0
 )
 
 class SquatViewModel(
@@ -46,6 +47,13 @@ class SquatViewModel(
     private val hipSmoother = AngleSmoother(config.smoothingAlpha)
     val stateMachine = SquatStateMachine(config)
     private val audioManager = SquatAudioManager(context)
+
+    // Room local ledger repository
+    private val creditRepository = com.fitness.squatcounter.data.repository.CreditRepository(
+        database = com.fitness.squatcounter.data.db.RepLockDatabase.getInstance(context),
+        timeProvider = com.fitness.squatcounter.data.AndroidTimeProvider(context)
+    )
+    private var currentSessionId: String = java.util.UUID.randomUUID().toString()
 
     // FPS calculation tracking
     private var frameCount = 0
@@ -65,18 +73,31 @@ class SquatViewModel(
     )
 
     init {
-        // Observe State Machine events to trigger audio and UI reactions
+        // Start initial workout session
+        viewModelScope.launch {
+            creditRepository.startSession(currentSessionId, "squats")
+        }
+
+        // Collect derived credit balance
+        viewModelScope.launch {
+            creditRepository.balanceFlow.collect { balance ->
+                _uiState.update { it.copy(creditBalanceSeconds = balance) }
+            }
+        }
+
+        // Observe State Machine events to trigger audio, UI reactions, and ledger credits
         viewModelScope.launch {
             stateMachine.events.collect { event ->
                 when (event) {
                     is SquatEvent.RepValidated -> {
                         audioManager.speakRep(event.repCount)
+                        creditRepository.recordValidatedRep(currentSessionId, event.repCount, "squats")
                     }
                     is SquatEvent.TrackingLost -> {
                         audioManager.playTrackingLostBeep()
                     }
                     is SquatEvent.RepRejected -> {
-                        // Rejection recorded in state machine, debug HUD will display it
+                        creditRepository.recordRejectedRep(currentSessionId)
                     }
                     is SquatEvent.TrackingRegained -> {
                         // Tracking restored
@@ -166,6 +187,13 @@ class SquatViewModel(
     }
 
     fun resetCounter() {
+        val oldSessionId = currentSessionId
+        currentSessionId = java.util.UUID.randomUUID().toString()
+        viewModelScope.launch {
+            creditRepository.completeSession(oldSessionId)
+            creditRepository.startSession(currentSessionId, "squats")
+        }
+
         kneeSmoother.reset()
         hipSmoother.reset()
         stateMachine.reset()
@@ -180,6 +208,10 @@ class SquatViewModel(
 
     override fun onCleared() {
         super.onCleared()
+        val sessionToClose = currentSessionId
+        viewModelScope.launch {
+            creditRepository.completeSession(sessionToClose)
+        }
         poseLandmarkerHelper.clear()
         audioManager.release()
     }

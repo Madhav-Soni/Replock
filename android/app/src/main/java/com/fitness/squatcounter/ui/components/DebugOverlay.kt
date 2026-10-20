@@ -106,25 +106,47 @@ fun DebugOverlay(
                         )
                     }
 
-                    // Current State Badge
-                    val (stateBg, stateText) = when (uiState.currentState) {
-                        SquatState.STANDING -> Pair(Color(0xFF1E3A8A), "STANDING")
-                        SquatState.DESCENDING -> Pair(Color(0xFFD97706), "DESCENDING")
-                        SquatState.BOTTOM -> Pair(Color(0xFF059669), "BOTTOM (GOOD DEPTH)")
-                        SquatState.ASCENDING -> Pair(Color(0xFF7C3AED), "ASCENDING")
-                    }
+                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                        // Current State Badge
+                        val (stateBg, stateText) = when (uiState.currentState) {
+                            SquatState.STANDING -> Pair(Color(0xFF1E3A8A), "STANDING")
+                            SquatState.DESCENDING -> Pair(Color(0xFFD97706), "DESCENDING")
+                            SquatState.BOTTOM -> Pair(Color(0xFF059669), "BOTTOM (GOOD DEPTH)")
+                            SquatState.ASCENDING -> Pair(Color(0xFF7C3AED), "ASCENDING")
+                        }
 
-                    Box(
-                        modifier = Modifier
-                            .background(stateBg, RoundedCornerShape(8.dp))
-                            .padding(horizontal = 12.dp, vertical = 6.dp)
-                    ) {
-                        Text(
-                            text = stateText,
-                            color = Color.White,
-                            fontSize = 12.sp,
-                            fontWeight = FontWeight.Bold
-                        )
+                        Box(
+                            modifier = Modifier
+                                .background(stateBg, RoundedCornerShape(8.dp))
+                                .padding(horizontal = 12.dp, vertical = 6.dp)
+                        ) {
+                            Text(
+                                text = stateText,
+                                color = Color.White,
+                                fontSize = 12.sp,
+                                fontWeight = FontWeight.Bold
+                            )
+                        }
+
+                        Spacer(modifier = Modifier.height(6.dp))
+
+                        // Screen-time Credit Balance Badge
+                        val minutes = uiState.creditBalanceSeconds / 60
+                        val seconds = uiState.creditBalanceSeconds % 60
+                        val formattedTime = if (minutes > 0) "${minutes}m ${seconds}s" else "${seconds}s"
+
+                        Box(
+                            modifier = Modifier
+                                .background(Color(0xFF065F46), RoundedCornerShape(8.dp))
+                                .padding(horizontal = 10.dp, vertical = 4.dp)
+                        ) {
+                            Text(
+                                text = "BALANCE: $formattedTime",
+                                color = Color(0xFF6EE7B7),
+                                fontSize = 11.sp,
+                                fontWeight = FontWeight.Bold
+                            )
+                        }
                     }
                 }
             }
