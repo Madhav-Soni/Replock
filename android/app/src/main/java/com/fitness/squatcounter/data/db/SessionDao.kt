@@ -26,4 +26,11 @@ interface SessionDao {
 
     @Query("SELECT * FROM sessions ORDER BY startTimeMs DESC")
     suspend fun getAllSessions(): List<SessionEntity>
+
+    @Query("UPDATE sessions SET status = :interruptedStatus, endTimeMs = :endTimeMs WHERE endTimeMs IS NULL AND sessionId != :excludeSessionId")
+    suspend fun closeStaleSessions(
+        endTimeMs: Long,
+        excludeSessionId: String = "",
+        interruptedStatus: SessionStatus = SessionStatus.INTERRUPTED
+    ): Int
 }

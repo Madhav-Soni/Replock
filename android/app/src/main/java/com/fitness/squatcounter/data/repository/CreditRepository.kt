@@ -42,11 +42,12 @@ class CreditRepository(
         val lastEntry = ledgerDao.getLatestEntry()
         val effectiveWallClock = if (lastEntry != null) {
             if (bootCount == lastEntry.bootCount) {
+                // Within the same boot, hardware elapsedRealtime is the monotonic ground truth.
+                // Raw wall clock is completely ignored to prevent both forward and backward time manipulation.
                 val elapsedDelta = maxOf(0L, elapsed - lastEntry.elapsedRealtimeMs)
-                val expectedWallClock = lastEntry.wallClockTimeMs + elapsedDelta
-                maxOf(rawWallClock, expectedWallClock)
+                lastEntry.wallClockTimeMs + elapsedDelta
             } else {
-                // Device rebooted; wall clock must not be earlier than last recorded entry
+                // Across reboots, clamp to at least the last recorded entry time
                 maxOf(rawWallClock, lastEntry.wallClockTimeMs)
             }
         } else {
@@ -96,6 +97,11 @@ class CreditRepository(
     ): Int {
         return database.withTransaction {
             val session = sessionDao.getSession(sessionId) ?: return@withTransaction 0
+            // A stale, closed, or completed session can never be credited again
+            if (session.status == SessionStatus.COMPLETED || session.endTimeMs != null) {
+                return@withTransaction 0
+            }
+
             val time = getEffectiveTimeSnapshot()
 
             val (startOfDayMs, endOfDayMs) = getDayBounds(time.wallClockTimeMs)
@@ -235,32 +241,55 @@ class CreditRepository(
     }
 
     /**
+     * Closes any stale open sessions as INTERRUPTED (e.g. on app start).
+     * Ensures they can never be credited again.
+     */
+    suspend fun closeStaleOpenSessions(excludeSessionId: String = ""): Int {
+        val time = getEffectiveTimeSnapshot()
+        return sessionDao.closeStaleSessions(
+            endTimeMs = time.wallClockTimeMs,
+            excludeSessionId = excludeSessionId
+        )
+    }
+
+    /**
+     * Canonical day derivation function: computes the 00:00:00 start of day in milliseconds.
+     */
+    fun getStartOfDayMs(wallClockMs: Long): Long {
+        val cal = Calendar.getInstance(timeZone).apply {
+            timeInMillis = wallClockMs
+            set(Calendar.HOUR_OF_DAY, 0)
+            set(Calendar.MINUTE, 0)
+            set(Calendar.SECOND, 0)
+            set(Calendar.MILLISECOND, 0)
+        }
+        return cal.timeInMillis
+    }
+
+    fun getEndOfDayMs(wallClockMs: Long): Long {
+        val cal = Calendar.getInstance(timeZone).apply {
+            timeInMillis = getStartOfDayMs(wallClockMs)
+            add(Calendar.DAY_OF_YEAR, 1)
+        }
+        return cal.timeInMillis - 1L
+    }
+
+    /**
      * Calculates the expiration timestamp for credits earned at wallClockMs:
      * "Credits expire at end of the next day" -> 23:59:59.999 of day D+1.
+     * DST-safe Calendar arithmetic: start of day D + 2 calendar days - 1 ms.
      */
     fun getEndOfNextDayMs(wallClockMs: Long): Long {
         val cal = Calendar.getInstance(timeZone).apply {
-            timeInMillis = wallClockMs
-            set(Calendar.HOUR_OF_DAY, 0)
-            set(Calendar.MINUTE, 0)
-            set(Calendar.SECOND, 0)
-            set(Calendar.MILLISECOND, 0)
+            timeInMillis = getStartOfDayMs(wallClockMs)
             add(Calendar.DAY_OF_YEAR, 2)
         }
-        return cal.timeInMillis - 1
+        return cal.timeInMillis - 1L
     }
 
     private fun getDayBounds(wallClockMs: Long): Pair<Long, Long> {
-        val cal = Calendar.getInstance(timeZone).apply {
-            timeInMillis = wallClockMs
-            set(Calendar.HOUR_OF_DAY, 0)
-            set(Calendar.MINUTE, 0)
-            set(Calendar.SECOND, 0)
-            set(Calendar.MILLISECOND, 0)
-        }
-        val startOfDay = cal.timeInMillis
-        cal.add(Calendar.DAY_OF_YEAR, 1)
-        val endOfDay = cal.timeInMillis - 1
+        val startOfDay = getStartOfDayMs(wallClockMs)
+        val endOfDay = getEndOfDayMs(wallClockMs)
         return Pair(startOfDay, endOfDay)
     }
 }

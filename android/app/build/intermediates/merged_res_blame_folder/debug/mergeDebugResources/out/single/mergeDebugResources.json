@@ -1,0 +1,14 @@
+[
+    {
+        "merged": "com.fitness.squatcounter.app-debug-57:/raw_beep.wav.flat",
+        "source": "com.fitness.squatcounter.app-main-59:/raw/beep.wav"
+    },
+    {
+        "merged": "com.fitness.squatcounter.app-debug-57:/xml_backup_rules.xml.flat",
+        "source": "com.fitness.squatcounter.app-main-59:/xml/backup_rules.xml"
+    },
+    {
+        "merged": "com.fitness.squatcounter.app-debug-57:/xml_data_extraction_rules.xml.flat",
+        "source": "com.fitness.squatcounter.app-main-59:/xml/data_extraction_rules.xml"
+    }
+]
