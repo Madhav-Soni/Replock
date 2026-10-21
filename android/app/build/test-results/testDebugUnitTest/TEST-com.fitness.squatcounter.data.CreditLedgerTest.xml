@@ -1,0 +1,20 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<testsuite name="com.fitness.squatcounter.data.CreditLedgerTest" tests="10" skipped="0" failures="0" errors="0" timestamp="2026-10-20T21:14:50" hostname="Madhavs-MacBook-Air.local" time="1.587">
+  <properties/>
+  <testcase name="testWithinSameBootWallClockIsIgnoredAndElapsedRealtimeUsed" classname="com.fitness.squatcounter.data.CreditLedgerTest" time="1.385"/>
+  <testcase name="testSessionSpanningMidnight" classname="com.fitness.squatcounter.data.CreditLedgerTest" time="0.087"/>
+  <testcase name="testCreditsExpireAtEndOfNextDay" classname="com.fitness.squatcounter.data.CreditLedgerTest" time="0.006"/>
+  <testcase name="testCrashMidSessionPreservesCommittedReps" classname="com.fitness.squatcounter.data.CreditLedgerTest" time="0.01"/>
+  <testcase name="testDuplicateSessionRepIdempotency" classname="com.fitness.squatcounter.data.CreditLedgerTest" time="0.01"/>
+  <testcase name="testClockGoingBackwardsIgnored" classname="com.fitness.squatcounter.data.CreditLedgerTest" time="0.008"/>
+  <testcase name="testDayBoundariesDstSafe" classname="com.fitness.squatcounter.data.CreditLedgerTest" time="0.004"/>
+  <testcase name="testFifoSpendingAndPartialExpiry" classname="com.fitness.squatcounter.data.CreditLedgerTest" time="0.008"/>
+  <testcase name="testStaleInterruptedSessionCannotBeCreditedAgain" classname="com.fitness.squatcounter.data.CreditLedgerTest" time="0.009"/>
+  <testcase name="testCapsEnforcedDaily" classname="com.fitness.squatcounter.data.CreditLedgerTest" time="0.06"/>
+  <system-out><![CDATA[WARNING: No manifest file found at ./AndroidManifest.xml.
+Falling back to the Android OS resources only.
+To remove this warning, annotate your test class with @Config(manifest=Config.NONE).
+If you're using Android Gradle Plugin, add testOptions.unitTests.includeAndroidResources = true to your build.gradle
+]]></system-out>
+  <system-err><![CDATA[]]></system-err>
+</testsuite>

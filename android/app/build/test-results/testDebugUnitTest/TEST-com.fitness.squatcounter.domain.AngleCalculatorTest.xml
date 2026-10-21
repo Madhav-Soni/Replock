@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<testsuite name="com.fitness.squatcounter.domain.AngleCalculatorTest" tests="5" skipped="0" failures="0" errors="0" timestamp="2026-10-20T21:14:51" hostname="Madhavs-MacBook-Air.local" time="0.001">
+  <properties/>
+  <testcase name="testRightAngleIs90" classname="com.fitness.squatcounter.domain.AngleCalculatorTest" time="0.001"/>
+  <testcase name="testFullBodyVisibilityCheck" classname="com.fitness.squatcounter.domain.AngleCalculatorTest" time="0.0"/>
+  <testcase name="testAngleSmootherNoiseFiltering" classname="com.fitness.squatcounter.domain.AngleCalculatorTest" time="0.0"/>
+  <testcase name="testAverageLegAngles" classname="com.fitness.squatcounter.domain.AngleCalculatorTest" time="0.0"/>
+  <testcase name="testStraightLineAngleIs180" classname="com.fitness.squatcounter.domain.AngleCalculatorTest" time="0.0"/>
+  <system-out><![CDATA[]]></system-out>
+  <system-err><![CDATA[]]></system-err>
+</testsuite>
