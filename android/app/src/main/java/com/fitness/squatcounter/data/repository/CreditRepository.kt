@@ -86,6 +86,14 @@ class CreditRepository(
     }
 
     /**
+     * Ends a session with given status.
+     */
+    suspend fun endSession(sessionId: String, status: SessionStatus) {
+        val time = getEffectiveTimeSnapshot()
+        sessionDao.updateSessionStatus(sessionId, status, time.wallClockTimeMs)
+    }
+
+    /**
      * Records a validated rep in a single Room transaction.
      * Enforces daily earn caps and idempotency.
      * Returns the earned credits awarded (0 if cap reached or already credited).

@@ -33,7 +33,7 @@ class SquatStateMachineTest {
         kneeAngle: Float,
         hipsAtOrBelowKnees: Boolean = false,
         isFullBodyVisible: Boolean = true,
-        advanceMs: Long = 200L,
+        advanceMs: Long = 300L,
         explicitTimestampMs: Long? = null
     ) {
         if (explicitTimestampMs != null) {
@@ -246,6 +246,7 @@ class SquatStateMachineTest {
 
         // User comes back into camera and stands up
         feedFrame(kneeAngle = 120.0f, hipsAtOrBelowKnees = false, isFullBodyVisible = true)
+        feedFrame(kneeAngle = 165.0f, hipsAtOrBelowKnees = false, isFullBodyVisible = true)
         feedFrame(kneeAngle = 165.0f, hipsAtOrBelowKnees = false, isFullBodyVisible = true)
 
         assertEquals(SquatState.STANDING, stateMachine.currentState)
