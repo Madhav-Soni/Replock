@@ -248,6 +248,7 @@ class SquatStateMachineTest {
         feedFrame(kneeAngle = 120.0f, hipsAtOrBelowKnees = false, isFullBodyVisible = true)
         feedFrame(kneeAngle = 165.0f, hipsAtOrBelowKnees = false, isFullBodyVisible = true)
         feedFrame(kneeAngle = 165.0f, hipsAtOrBelowKnees = false, isFullBodyVisible = true)
+        feedFrame(kneeAngle = 165.0f, hipsAtOrBelowKnees = false, isFullBodyVisible = true)
 
         assertEquals(SquatState.STANDING, stateMachine.currentState)
         assertEquals(0, stateMachine.repCount)

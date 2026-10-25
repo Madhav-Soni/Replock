@@ -1,3 +1,4 @@
 <resources>
     <string name="app_name">Squat Counter</string>
+<string name="accessibility_service_description">RepLock detects which app is on screen so it can charge your earned screen time and block the apps you chose when your credits run out. It never reads screen content.</string>
 </resources>
