@@ -76,6 +76,10 @@ class CloseUpSquatStateMachine(
     var torsoScale: Float = 1f
         private set
 
+    /** Deepest hip drop reached in the most recent finished rep (torso lengths). */
+    var lastRepPeakDrop: Float = 0f
+        private set
+
     var onEventListener: ((SquatEvent) -> Unit)? = null
 
     private var baselineHipY = 0f
@@ -104,6 +108,7 @@ class CloseUpSquatStateMachine(
         isCalibrated = false
         dropRatio = 0f
         torsoScale = 1f
+        lastRepPeakDrop = 0f
         baselineHipY = 0f
         baselineTorso = 1f
         calibrationCount = 0
@@ -201,7 +206,11 @@ class CloseUpSquatStateMachine(
 
             SquatState.ASCENDING -> {
                 trackRep()
-                if (dropRatio <= config.standingDropRatio) {
+                if (dropRatio >= config.bottomDropRatio) {
+                    // Went down again (a stutter or bounce): still the same rep, back at the bottom.
+                    hasReachedBottom = true
+                    transitionTo(SquatState.BOTTOM)
+                } else if (dropRatio <= config.standingDropRatio) {
                     validateAndFinishRep(timestampMs)
                     transitionTo(SquatState.STANDING)
                 }
@@ -228,6 +237,7 @@ class CloseUpSquatStateMachine(
     }
 
     private fun validateAndFinishRep(timestampMs: Long) {
+        lastRepPeakDrop = maxDropInRep
         if (trackingLostDuringRep) {
             reject(RejectionReason.TRACKING_LOST_DURING_REP)
             return

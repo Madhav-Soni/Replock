@@ -353,6 +353,9 @@ private fun BottomPanel(
                         color = Amber,
                         fontSize = 12.sp
                     )
+                    uiState.rejectionDetail?.let { detail ->
+                        Text(text = detail, color = Amber, fontSize = 11.sp)
+                    }
                 }
                 Spacer(modifier = Modifier.height(12.dp))
                 BigButton(text = "STOP", color = Red, onClick = onStop)

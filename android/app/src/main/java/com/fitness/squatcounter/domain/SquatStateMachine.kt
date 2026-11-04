@@ -28,6 +28,14 @@ class SquatStateMachine(
     var lastRejectionReason: RejectionReason = RejectionReason.NONE
         private set
 
+    /** Smallest knee angle reached in the most recent finished rep (degrees). */
+    var lastRepMinKneeAngle: Float = 180.0f
+        private set
+
+    /** Whether the hips reached knee level in the most recent finished rep. */
+    var lastRepHipsReachedKneeLevel: Boolean = false
+        private set
+
     // Internal state tracking for current rep
     private var hasReachedBottom: Boolean = false
     private var hipsReachedKneeLevel: Boolean = false
@@ -155,6 +163,8 @@ class SquatStateMachine(
     }
 
     private fun validateAndFinishRep(timestampMs: Long) {
+        lastRepMinKneeAngle = minKneeAngleInRep
+        lastRepHipsReachedKneeLevel = hipsReachedKneeLevel
         if (trackingLostDuringRep) {
             lastRejectionReason = RejectionReason.TRACKING_LOST_DURING_REP
             emitEvent(SquatEvent.RepRejected(RejectionReason.TRACKING_LOST_DURING_REP))

@@ -69,7 +69,9 @@ data class SquatUiState(
     // Detection mode chosen for the running session, plus close-up debug values
     val squatMode: SquatMode = SquatMode.FULL_BODY,
     val dropRatio: Float = 0f,
-    val torsoScale: Float = 1f
+    val torsoScale: Float = 1f,
+    // Why the last rep was rejected, with the real numbers (null if not applicable)
+    val rejectionDetail: String? = null
 ) {
     /** Screen stays on only while a session is live. */
     val keepScreenOn: Boolean get() = sessionPhase.isLive
@@ -225,7 +227,8 @@ class SquatViewModel(
                 landmarks = emptyList(),
                 isFullBodyVisible = false,
                 dropRatio = 0f,
-                torsoScale = 1f
+                torsoScale = 1f,
+                rejectionDetail = null
             )
         }
         publishSessionUi(now)
@@ -329,7 +332,8 @@ class SquatViewModel(
                     currentState = activeState(),
                     lastRejectionReason = activeRejection(),
                     dropRatio = closeUpMachine.dropRatio,
-                    torsoScale = closeUpMachine.torsoScale
+                    torsoScale = closeUpMachine.torsoScale,
+                    rejectionDetail = rejectionDetail()
                 )
             } else {
                 updated
@@ -349,6 +353,23 @@ class SquatViewModel(
         } else {
             closeUpMachine.lastRejectionReason
         }
+
+    /** For a rep rejected as not deep enough: how far it got versus what is needed. */
+    private fun rejectionDetail(): String? {
+        if (activeRejection() != RejectionReason.NOT_DEEP_ENOUGH) return null
+        return if (activeMode == SquatMode.CLOSE_UP) {
+            "hips dropped %.2f, needs %.2f".format(
+                closeUpMachine.lastRepPeakDrop,
+                closeUpConfig.bottomDropRatio
+            )
+        } else {
+            "knee reached %.0f deg (needs %.0f or less), hips %s knee level".format(
+                stateMachine.lastRepMinKneeAngle,
+                config.bottomKneeAngle,
+                if (stateMachine.lastRepHipsReachedKneeLevel) "reached" else "stayed above"
+            )
+        }
+    }
 
     // ---- Session plumbing ----
 
@@ -411,7 +432,8 @@ class SquatViewModel(
                         currentState = SquatState.STANDING,
                         lastRejectionReason = RejectionReason.NONE,
                         dropRatio = 0f,
-                        torsoScale = 1f
+                        torsoScale = 1f,
+                        rejectionDetail = null
                     )
                 }
                 enqueueLedgerWrite {
