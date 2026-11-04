@@ -40,6 +40,8 @@ import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import kotlin.math.ceil
 
+private const val KEY_FRONT_CAMERA = "front_camera"
+
 data class SquatUiState(
     val repCount: Int = 0,
     val currentState: SquatState = SquatState.STANDING,
@@ -57,7 +59,9 @@ data class SquatUiState(
     val countdownSecondsLeft: Int = 0,
     val sessionEarnedSeconds: Int = 0,
     val sessionEndReason: SessionEndReason? = null,
-    val feedHealthy: Boolean = true
+    val feedHealthy: Boolean = true,
+    // Camera choice (remembered between launches)
+    val useFrontCamera: Boolean = true
 ) {
     /** Screen stays on only while a session is live. */
     val keepScreenOn: Boolean get() = sessionPhase.isLive
@@ -76,6 +80,8 @@ class SquatViewModel(
     private val hipSmoother = AngleSmoother(config.smoothingAlpha)
     val stateMachine = SquatStateMachine(config)
     private val audioManager = SquatAudioManager(context)
+    private val prefs = context.applicationContext
+        .getSharedPreferences("replock_prefs", Context.MODE_PRIVATE)
 
     // Session lifecycle
     private val session = SessionStateMachine(sessionConfig)
@@ -120,6 +126,8 @@ class SquatViewModel(
     )
 
     init {
+        _uiState.update { it.copy(useFrontCamera = prefs.getBoolean(KEY_FRONT_CAMERA, true)) }
+
         // Synchronous listeners: the session phase at the moment of the event is exact.
         stateMachine.onEventListener = { event -> handleSquatEvent(event) }
         session.onEventListener = { event -> handleSessionEvent(event) }
@@ -157,6 +165,14 @@ class SquatViewModel(
     }
 
     // ---- Controls (call from the main thread) ----
+
+    /** Switch between front and back camera. Not allowed while a session is live. */
+    fun toggleCamera() {
+        if (session.phase.isLive) return
+        val useFront = !_uiState.value.useFrontCamera
+        prefs.edit().putBoolean(KEY_FRONT_CAMERA, useFront).apply()
+        _uiState.update { it.copy(useFrontCamera = useFront) }
+    }
 
     fun startSession() {
         val now = SystemClock.uptimeMillis()

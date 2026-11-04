@@ -5,11 +5,17 @@ import android.view.WindowManager
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.viewModels
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.runtime.setValue
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.lifecycleScope
 import androidx.lifecycle.repeatOnLifecycle
+import com.fitness.squatcounter.blocker.BlockerViewModel
+import com.fitness.squatcounter.ui.BlockerScreen
 import com.fitness.squatcounter.ui.SquatScreen
 import com.fitness.squatcounter.ui.SquatViewModel
 import kotlinx.coroutines.flow.distinctUntilChanged
@@ -23,6 +29,15 @@ class MainActivity : ComponentActivity() {
             @Suppress("UNCHECKED_CAST")
             override fun <T : ViewModel> create(modelClass: Class<T>): T {
                 return SquatViewModel(applicationContext) as T
+            }
+        }
+    }
+
+    private val blockerViewModel: BlockerViewModel by viewModels {
+        object : ViewModelProvider.Factory {
+            @Suppress("UNCHECKED_CAST")
+            override fun <T : ViewModel> create(modelClass: Class<T>): T {
+                return BlockerViewModel(applicationContext) as T
             }
         }
     }
@@ -47,8 +62,26 @@ class MainActivity : ComponentActivity() {
         }
 
         setContent {
-            SquatScreen(viewModel = viewModel)
+            var showBlocker by rememberSaveable { mutableStateOf(false) }
+
+            if (showBlocker) {
+                BlockerScreen(
+                    viewModel = blockerViewModel,
+                    onBack = { showBlocker = false }
+                )
+            } else {
+                SquatScreen(
+                    viewModel = viewModel,
+                    onOpenBlocker = { showBlocker = true }
+                )
+            }
         }
+    }
+
+    override fun onResume() {
+        super.onResume()
+        // The user may have just changed Accessibility settings.
+        blockerViewModel.refreshStatus()
     }
 
     override fun onPause() {

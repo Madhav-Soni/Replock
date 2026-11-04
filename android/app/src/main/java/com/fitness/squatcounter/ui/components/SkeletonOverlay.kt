@@ -9,9 +9,28 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.StrokeCap
 import com.fitness.squatcounter.domain.LandmarkPoint
 
+/** Width / height of the portrait camera frame (4:3 sensor, rotated to portrait). */
+private const val FRAME_ASPECT = 3f / 4f
+
+/** Minimum visibility for a joint or bone to be drawn. */
+private const val MIN_VISIBILITY = 0.3f
+
+/** Body bones as pairs of MediaPipe pose landmark indices (face and fingers are skipped). */
+private val BONES = listOf(
+    11 to 12, // shoulders
+    11 to 13, 13 to 15, // left arm
+    12 to 14, 14 to 16, // right arm
+    11 to 23, 12 to 24, 23 to 24, // torso
+    23 to 25, 25 to 27, 27 to 29, 29 to 31, 27 to 31, // left leg and foot
+    24 to 26, 26 to 28, 28 to 30, 30 to 32, 28 to 32 // right leg and foot
+)
+
+private val BODY_JOINTS = listOf(11, 12, 13, 14, 15, 16, 23, 24, 25, 26, 27, 28, 29, 30, 31, 32)
+
 /**
- * Draws the human skeleton overlay on top of the live camera preview.
- * Adapts color based on whether full-body tracking is active.
+ * Draws the tracked skeleton over the camera preview.
+ * The preview is letterboxed (FIT_CENTER), so landmarks are mapped into the same centred
+ * rectangle. Green = full body tracked, orange = body not fully visible.
  */
 @Composable
 fun SkeletonOverlay(
@@ -19,73 +38,48 @@ fun SkeletonOverlay(
     isFullBodyVisible: Boolean,
     modifier: Modifier = Modifier
 ) {
-    if (landmarks.isEmpty()) return
-
-    val boneColor = if (isFullBodyVisible) Color(0xFF00E676) else Color(0xFFFF5252)
-    val jointColor = if (isFullBodyVisible) Color(0xFF00B0FF) else Color(0xFFFFD600)
-
-    val connections = listOf(
-        // Torso & Shoulders
-        Pair(11, 12), // left shoulder to right shoulder
-        Pair(11, 23), // left shoulder to left hip
-        Pair(12, 24), // right shoulder to right hip
-        Pair(23, 24), // left hip to right hip
-
-        // Left Leg
-        Pair(23, 25), // left hip to left knee
-        Pair(25, 27), // left knee to left ankle
-
-        // Right Leg
-        Pair(24, 26), // right hip to right knee
-        Pair(26, 28), // right knee to right ankle
-
-        // Arms (optional visual aid)
-        Pair(11, 13), // left shoulder to left elbow
-        Pair(13, 15), // left elbow to left wrist
-        Pair(12, 14), // right shoulder to right elbow
-        Pair(14, 16)  // right elbow to right wrist
-    )
-
     Canvas(modifier = modifier.fillMaxSize()) {
-        val width = size.width
-        val height = size.height
+        if (landmarks.size < 33) return@Canvas
 
-        // 1. Draw bones (connecting lines)
-        for ((startIdx, endIdx) in connections) {
-            if (startIdx < landmarks.size && endIdx < landmarks.size) {
-                val start = landmarks[startIdx]
-                val end = landmarks[endIdx]
+        // The rectangle the camera image actually occupies inside this canvas.
+        val canvasAspect = size.width / size.height
+        val drawWidth: Float
+        val drawHeight: Float
+        if (canvasAspect > FRAME_ASPECT) {
+            drawHeight = size.height
+            drawWidth = drawHeight * FRAME_ASPECT
+        } else {
+            drawWidth = size.width
+            drawHeight = drawWidth / FRAME_ASPECT
+        }
+        val offsetX = (size.width - drawWidth) / 2f
+        val offsetY = (size.height - drawHeight) / 2f
 
-                if (start.visibility >= 0.4f && end.visibility >= 0.4f) {
-                    drawLine(
-                        color = boneColor,
-                        start = Offset(start.x * width, start.y * height),
-                        end = Offset(end.x * width, end.y * height),
-                        strokeWidth = 6f,
-                        cap = StrokeCap.Round
-                    )
-                }
-            }
+        fun toCanvas(point: LandmarkPoint) = Offset(
+            x = offsetX + point.x * drawWidth,
+            y = offsetY + point.y * drawHeight
+        )
+
+        val boneColor = if (isFullBodyVisible) Color(0xFF10B981) else Color(0xFFF59E0B)
+        val jointColor = Color.White
+
+        for ((a, b) in BONES) {
+            val pa = landmarks[a]
+            val pb = landmarks[b]
+            if (pa.visibility < MIN_VISIBILITY || pb.visibility < MIN_VISIBILITY) continue
+            drawLine(
+                color = boneColor,
+                start = toCanvas(pa),
+                end = toCanvas(pb),
+                strokeWidth = 6f,
+                cap = StrokeCap.Round
+            )
         }
 
-        // 2. Draw joints (circles)
-        val keyJointIndices = listOf(11, 12, 23, 24, 25, 26, 27, 28)
-        for (idx in keyJointIndices) {
-            if (idx < landmarks.size) {
-                val point = landmarks[idx]
-                if (point.visibility >= 0.4f) {
-                    drawCircle(
-                        color = jointColor,
-                        radius = 10f,
-                        center = Offset(point.x * width, point.y * height)
-                    )
-                    drawCircle(
-                        color = Color.White,
-                        radius = 4f,
-                        center = Offset(point.x * width, point.y * height)
-                    )
-                }
-            }
+        for (index in BODY_JOINTS) {
+            val point = landmarks[index]
+            if (point.visibility < MIN_VISIBILITY) continue
+            drawCircle(color = jointColor, radius = 7f, center = toCanvas(point))
         }
     }
 }
