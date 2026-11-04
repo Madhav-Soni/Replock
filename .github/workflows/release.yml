@@ -43,9 +43,10 @@ jobs:
 
       - name: Publish GitHub Release
         uses: softprops/action-gh-release@v2
-        if: startsWith(github.ref, 'refs/tags/')
+        if: startsWith(github.ref, 'refs/tags/') || github.ref == 'refs/heads/main'
         with:
+          tag_name: latest
           files: android/app/build/outputs/apk/debug/app-debug.apk
-          name: Release ${{ github.ref_name }}
+          name: RepLock Latest Build
           generate_release_notes: true
 
