@@ -15,7 +15,7 @@ import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.lifecycleScope
 import androidx.lifecycle.repeatOnLifecycle
 import com.fitness.squatcounter.blocker.BlockerViewModel
-import com.fitness.squatcounter.ui.BlockerScreen
+import com.fitness.squatcounter.blocker.BlockerScreen
 import com.fitness.squatcounter.ui.SquatScreen
 import com.fitness.squatcounter.ui.SquatViewModel
 import kotlinx.coroutines.flow.distinctUntilChanged

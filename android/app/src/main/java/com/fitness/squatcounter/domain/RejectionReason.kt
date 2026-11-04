@@ -8,5 +8,6 @@ enum class RejectionReason(val displayName: String) {
     TOO_FAST("Rep too fast: minimum duration not met"),
     TOO_SLOW("Rep too slow: maximum duration exceeded"),
     TRACKING_LOST_DURING_REP("Rep invalid: person lost from camera"),
+    SCALE_CHANGED("Rep invalid: you moved toward or away from the camera"),
     NONE("None")
 }

@@ -10,14 +10,18 @@ import com.fitness.squatcounter.data.CreditConfig
 import com.fitness.squatcounter.data.SessionStatus
 import com.fitness.squatcounter.domain.AngleCalculator
 import com.fitness.squatcounter.domain.AngleSmoother
+import com.fitness.squatcounter.domain.CloseUpSquatConfig
+import com.fitness.squatcounter.domain.CloseUpSquatStateMachine
 import com.fitness.squatcounter.domain.FullBodyPose
 import com.fitness.squatcounter.domain.LandmarkPoint
 import com.fitness.squatcounter.domain.PoseFeatures
 import com.fitness.squatcounter.domain.RejectionReason
 import com.fitness.squatcounter.domain.SquatConfig
 import com.fitness.squatcounter.domain.SquatEvent
+import com.fitness.squatcounter.domain.SquatMode
 import com.fitness.squatcounter.domain.SquatState
 import com.fitness.squatcounter.domain.SquatStateMachine
+import com.fitness.squatcounter.domain.UpperBodyExtractor
 import com.fitness.squatcounter.pose.PoseLandmarkerHelper
 import com.fitness.squatcounter.session.FeedMonitor
 import com.fitness.squatcounter.session.SessionConfig
@@ -61,7 +65,11 @@ data class SquatUiState(
     val sessionEndReason: SessionEndReason? = null,
     val feedHealthy: Boolean = true,
     // Camera choice (remembered between launches)
-    val useFrontCamera: Boolean = true
+    val useFrontCamera: Boolean = true,
+    // Detection mode chosen for the running session, plus close-up debug values
+    val squatMode: SquatMode = SquatMode.FULL_BODY,
+    val dropRatio: Float = 0f,
+    val torsoScale: Float = 1f
 ) {
     /** Screen stays on only while a session is live. */
     val keepScreenOn: Boolean get() = sessionPhase.isLive
@@ -70,7 +78,8 @@ data class SquatUiState(
 class SquatViewModel(
     context: Context,
     val config: SquatConfig = SquatConfig(),
-    private val sessionConfig: SessionConfig = SessionConfig()
+    private val sessionConfig: SessionConfig = SessionConfig(),
+    private val closeUpConfig: CloseUpSquatConfig = CloseUpSquatConfig()
 ) : ViewModel() {
 
     private val _uiState = MutableStateFlow(SquatUiState())
@@ -79,6 +88,7 @@ class SquatViewModel(
     private val kneeSmoother = AngleSmoother(config.smoothingAlpha)
     private val hipSmoother = AngleSmoother(config.smoothingAlpha)
     val stateMachine = SquatStateMachine(config)
+    private val closeUpMachine = CloseUpSquatStateMachine(closeUpConfig)
     private val audioManager = SquatAudioManager(context)
     private val prefs = context.applicationContext
         .getSharedPreferences("replock_prefs", Context.MODE_PRIVATE)
@@ -90,6 +100,9 @@ class SquatViewModel(
     private var sessionEarnedSeconds = 0
     private var lastBodyVisible = false
     private var lastSpokenCountdown = -1
+    private var activeMode = SquatMode.FULL_BODY
+    private var fullBodySinceMs: Long? = null
+    private var lastFrameMs = 0L
 
     // Read on the camera thread, written on the main thread.
     @Volatile
@@ -130,6 +143,7 @@ class SquatViewModel(
 
         // Synchronous listeners: the session phase at the moment of the event is exact.
         stateMachine.onEventListener = { event -> handleSquatEvent(event) }
+        closeUpMachine.onEventListener = { event -> handleSquatEvent(event) }
         session.onEventListener = { event -> handleSessionEvent(event) }
 
         // Single consumer for ledger writes.
@@ -200,6 +214,7 @@ class SquatViewModel(
         kneeSmoother.reset()
         hipSmoother.reset()
         stateMachine.reset()
+        closeUpMachine.reset()
         sessionEarnedSeconds = 0
         _uiState.update {
             it.copy(
@@ -208,7 +223,9 @@ class SquatViewModel(
                 lastRejectionReason = RejectionReason.NONE,
                 sessionEarnedSeconds = 0,
                 landmarks = emptyList(),
-                isFullBodyVisible = false
+                isFullBodyVisible = false,
+                dropRatio = 0f,
+                torsoScale = 1f
             )
         }
         publishSessionUi(now)
@@ -246,71 +263,92 @@ class SquatViewModel(
     ) {
         if (!analysisEnabled) return
         updateFps()
+        lastFrameMs = timestampMs
 
         feedMonitor.onFrame(timestampMs, allLandmarks)
-        lastBodyVisible = pose != null &&
-            pose.isFullBodyVisible(config.visibilityConfidenceThreshold)
+
+        val threshold = config.visibilityConfidenceThreshold
+        val fullBodyVisible = pose != null && pose.isFullBodyVisible(threshold)
+        val upperBody = UpperBodyExtractor.extract(allLandmarks, threshold)
+
+        // How long shoulders, hips, knees AND ankles have been continuously visible.
+        // Used to pick the detection mode when the session starts.
+        fullBodySinceMs = if (fullBodyVisible) (fullBodySinceMs ?: timestampMs) else null
+
+        // Setup and countdown only need shoulders + hips. Once a session is running,
+        // the locked mode decides what must be visible.
+        val phaseBefore = session.phase
+        lastBodyVisible = if (phaseBefore == SessionPhase.ACTIVE || phaseBefore == SessionPhase.PAUSED) {
+            if (activeMode == SquatMode.FULL_BODY) fullBodyVisible else upperBody.isVisible
+        } else {
+            upperBody.isVisible
+        }
+
         session.update(timestampMs, currentSignals(timestampMs))
         publishSessionUi(timestampMs)
 
-        if (pose == null) {
+        // Knee and hip angles: used by full-body mode and shown in the debug panel.
+        val fullFeatures = if (pose != null) {
+            val (rawKnee, rawHip) = AngleCalculator.extractAngles(pose, use3D = false)
+            PoseFeatures(
+                rawKneeAngle = rawKnee,
+                smoothedKneeAngle = kneeSmoother.filter(rawKnee),
+                rawHipAngle = rawHip,
+                smoothedHipAngle = hipSmoother.filter(rawHip),
+                areHipsAtOrBelowKnees = pose.areHipsAtOrBelowKnees(),
+                isFullBodyVisible = fullBodyVisible
+            )
+        } else {
             kneeSmoother.reset()
             hipSmoother.reset()
-            stateMachine.processFrame(
-                PoseFeatures(
-                    rawKneeAngle = 0f,
-                    smoothedKneeAngle = 0f,
-                    rawHipAngle = 0f,
-                    smoothedHipAngle = 0f,
-                    areHipsAtOrBelowKnees = false,
-                    isFullBodyVisible = false
-                ),
-                timestampMs = timestampMs
-            )
-
-            _uiState.update {
-                it.copy(
-                    currentState = stateMachine.currentState,
-                    repCount = stateMachine.repCount,
-                    lastRejectionReason = stateMachine.lastRejectionReason,
-                    isFullBodyVisible = false,
-                    landmarks = emptyList(),
-                    fps = currentFps
-                )
-            }
-            return
+            PoseFeatures(0f, 0f, 0f, 0f, false, false)
         }
 
-        val isFullBodyVisible = pose.isFullBodyVisible(config.visibilityConfidenceThreshold)
-        val (rawKnee, rawHip) = AngleCalculator.extractAngles(pose, use3D = false)
-        val smoothedKnee = kneeSmoother.filter(rawKnee)
-        val smoothedHip = hipSmoother.filter(rawHip)
-        val hipsAtOrBelowKnees = pose.areHipsAtOrBelowKnees()
-
-        val features = PoseFeatures(
-            rawKneeAngle = rawKnee,
-            smoothedKneeAngle = smoothedKnee,
-            rawHipAngle = rawHip,
-            smoothedHipAngle = smoothedHip,
-            areHipsAtOrBelowKnees = hipsAtOrBelowKnees,
-            isFullBodyVisible = isFullBodyVisible
-        )
-
-        stateMachine.processFrame(features, timestampMs = timestampMs)
+        val phase = session.phase
+        val counting = phase == SessionPhase.ACTIVE || phase == SessionPhase.PAUSED
+        if (counting) {
+            when (activeMode) {
+                SquatMode.FULL_BODY ->
+                    stateMachine.processFrame(fullFeatures, timestampMs = timestampMs)
+                SquatMode.CLOSE_UP ->
+                    closeUpMachine.processFrame(upperBody, timestampMs)
+            }
+        }
 
         _uiState.update {
-            it.copy(
-                repCount = stateMachine.repCount,
-                currentState = stateMachine.currentState,
-                lastRejectionReason = stateMachine.lastRejectionReason,
-                kneeAngle = smoothedKnee,
-                hipAngle = smoothedHip,
+            val updated = it.copy(
+                kneeAngle = fullFeatures.smoothedKneeAngle,
+                hipAngle = fullFeatures.smoothedHipAngle,
                 fps = currentFps,
-                isFullBodyVisible = isFullBodyVisible,
+                isFullBodyVisible = lastBodyVisible,
                 landmarks = allLandmarks
             )
+            if (counting) {
+                updated.copy(
+                    repCount = activeRepCount(),
+                    currentState = activeState(),
+                    lastRejectionReason = activeRejection(),
+                    dropRatio = closeUpMachine.dropRatio,
+                    torsoScale = closeUpMachine.torsoScale
+                )
+            } else {
+                updated
+            }
         }
     }
+
+    private fun activeRepCount(): Int =
+        if (activeMode == SquatMode.FULL_BODY) stateMachine.repCount else closeUpMachine.repCount
+
+    private fun activeState(): SquatState =
+        if (activeMode == SquatMode.FULL_BODY) stateMachine.currentState else closeUpMachine.currentState
+
+    private fun activeRejection(): RejectionReason =
+        if (activeMode == SquatMode.FULL_BODY) {
+            stateMachine.lastRejectionReason
+        } else {
+            closeUpMachine.lastRejectionReason
+        }
 
     // ---- Session plumbing ----
 
@@ -351,10 +389,31 @@ class SquatViewModel(
                 val id = java.util.UUID.randomUUID().toString()
                 activeSessionId = id
                 sessionEarnedSeconds = 0
+                // Pick the detection mode for the whole session: full-body (knee angle) only if
+                // the ankles stayed visible for the full setup hold, otherwise close-up (hip drop).
+                val fullBodySince = fullBodySinceMs
+                activeMode = if (fullBodySince != null &&
+                    lastFrameMs - fullBodySince >= sessionConfig.setupHoldMs
+                ) {
+                    SquatMode.FULL_BODY
+                } else {
+                    SquatMode.CLOSE_UP
+                }
                 // Fresh counters: rep numbers start at 1 for every session.
                 kneeSmoother.reset()
                 hipSmoother.reset()
                 stateMachine.reset()
+                closeUpMachine.reset()
+                _uiState.update {
+                    it.copy(
+                        squatMode = activeMode,
+                        repCount = 0,
+                        currentState = SquatState.STANDING,
+                        lastRejectionReason = RejectionReason.NONE,
+                        dropRatio = 0f,
+                        torsoScale = 1f
+                    )
+                }
                 enqueueLedgerWrite {
                     creditRepository.startSession(id, CreditConfig.EXERCISE_SQUATS)
                 }

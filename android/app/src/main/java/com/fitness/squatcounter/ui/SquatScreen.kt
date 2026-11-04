@@ -43,6 +43,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.core.content.ContextCompat
 import com.fitness.squatcounter.domain.RejectionReason
+import com.fitness.squatcounter.domain.SquatMode
 import com.fitness.squatcounter.session.SessionEndReason
 import com.fitness.squatcounter.session.SessionPhase
 import com.fitness.squatcounter.session.SetupProblem
@@ -255,7 +256,7 @@ private fun BoxScope.CameraMessages(uiState: SquatUiState) {
 
         SessionPhase.PAUSED -> {
             Pill(
-                text = "Paused: " + setupText(uiState.setupProblem),
+                text = pausedText(uiState),
                 color = Red,
                 modifier = Modifier
                     .align(Alignment.TopCenter)
@@ -303,7 +304,7 @@ private fun BottomPanel(
                 )
                 Spacer(modifier = Modifier.height(8.dp))
                 Text(
-                    text = "Prop the phone up so your whole body is in view. Front or back camera both work.",
+                    text = "Prop the phone up so your shoulders and hips are in view. Front or back camera both work. Showing your whole body is the most accurate.",
                     color = Muted,
                     fontSize = 12.sp,
                     textAlign = TextAlign.Center
@@ -329,6 +330,15 @@ private fun BottomPanel(
                     fontWeight = FontWeight.Black
                 )
                 Text(text = "REPS", color = Muted, fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                Text(
+                    text = if (uiState.squatMode == SquatMode.CLOSE_UP) {
+                        "Close-up mode (shoulders and hips)"
+                    } else {
+                        "Full-body mode"
+                    },
+                    color = Muted,
+                    fontSize = 11.sp
+                )
                 Spacer(modifier = Modifier.height(4.dp))
                 Text(
                     text = "+${formatSeconds(uiState.sessionEarnedSeconds)} earned",
@@ -370,7 +380,10 @@ private fun DebugPanel(
             "Reject  ${uiState.lastRejectionReason}",
             "Body    ${if (uiState.isFullBodyVisible) "visible" else "not visible"}",
             "Feed    ${if (uiState.feedHealthy) "ok" else "stale or frozen"}",
-            "Session ${uiState.sessionPhase}"
+            "Session ${uiState.sessionPhase}",
+            "Mode    ${uiState.squatMode}",
+            "Drop    ${"%.2f".format(uiState.dropRatio)} torso",
+            "Scale   ${"%.2f".format(uiState.torsoScale)}"
         )
         for (line in lines) {
             Text(
@@ -445,10 +458,19 @@ private fun BigButton(text: String, color: Color, onClick: () -> Unit) {
 
 private fun setupText(problem: SetupProblem): String = when (problem) {
     SetupProblem.NONE -> "Looks good. Hold your position."
-    SetupProblem.BODY_NOT_VISIBLE -> "Step back: show your whole body"
+    SetupProblem.BODY_NOT_VISIBLE -> "Keep your shoulders and hips in view"
     SetupProblem.FEED_LOST -> "Camera feed lost or frozen"
     SetupProblem.PHONE_MOVING -> "Put the phone down and keep it still"
 }
+
+private fun pausedText(uiState: SquatUiState): String =
+    if (uiState.setupProblem == SetupProblem.BODY_NOT_VISIBLE &&
+        uiState.squatMode == SquatMode.FULL_BODY
+    ) {
+        "Paused: keep your whole body in view"
+    } else {
+        "Paused: " + setupText(uiState.setupProblem)
+    }
 
 private fun endText(reason: SessionEndReason?): String = when (reason) {
     SessionEndReason.USER_STOP -> "Session complete"
