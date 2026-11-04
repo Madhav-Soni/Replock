@@ -51,58 +51,97 @@ class AppUpdateManager(private val context: Context) {
     ) = withContext(Dispatchers.IO) {
         try {
             _updateState.value = UpdateState.Checking
-            val apiUrl = "https://api.github.com/repos/$owner/$repo/releases/latest"
-            val url = URL(apiUrl)
-            val connection = (url.openConnection() as HttpURLConnection).apply {
-                connectTimeout = 10000
-                readTimeout = 10000
-                setRequestProperty("Accept", "application/vnd.github.v3+json")
-                setRequestProperty("User-Agent", "RepLock-App")
-            }
 
-            if (connection.responseCode != 200) {
-                _updateState.value = UpdateState.Idle
-                return@withContext
-            }
+            // First check version.json directly from repository raw content (never rate-limited)
+            val rawJsonUrl = "https://raw.githubusercontent.com/$owner/$repo/main/version.json"
+            val rawResponse = fetchHttpText(rawJsonUrl)
 
-            val response = connection.inputStream.bufferedReader().use(BufferedReader::readText)
-            val json = JSONObject(response)
-            val tagName = json.optString("tag_name", "") // e.g. "v1.1" or "v2" or "2"
-            val body = json.optString("body", "Bug fixes and improvements.")
-            val assets = json.optJSONArray("assets")
+            if (rawResponse != null) {
+                val json = JSONObject(rawResponse)
+                val remoteVersionCode = json.optInt("versionCode", 1)
+                val versionName = json.optString("versionName", "v$remoteVersionCode")
+                val downloadUrl = json.optString("downloadUrl", "")
+                val releaseNotes = json.optString("releaseNotes", "New update available!")
 
-            var downloadUrl = ""
-            if (assets != null) {
-                for (i in 0 until assets.length()) {
-                    val asset = assets.getJSONObject(i)
-                    val name = asset.optString("name", "")
-                    if (name.endsWith(".apk", ignoreCase = true)) {
-                        downloadUrl = asset.optString("browser_download_url", "")
-                        break
-                    }
+                val currentVersionCode = BuildConfig.VERSION_CODE
+                Log.d("AppUpdateManager", "Raw check: current=$currentVersionCode, remote=$remoteVersionCode")
+
+                if (remoteVersionCode > currentVersionCode && downloadUrl.isNotBlank()) {
+                    _updateState.value = UpdateState.UpdateAvailable(
+                        AppUpdateInfo(
+                            latestVersionCode = remoteVersionCode,
+                            latestVersionName = versionName,
+                            downloadUrl = downloadUrl,
+                            releaseNotes = releaseNotes
+                        )
+                    )
+                    return@withContext
                 }
             }
 
-            // Extract numeric version from tag e.g. "v2" -> 2, "v1.2.0" -> 2
-            val remoteVersionCode = parseVersionCode(tagName)
-            val currentVersionCode = BuildConfig.VERSION_CODE
+            // Fallback to GitHub Releases API
+            val apiUrl = "https://api.github.com/repos/$owner/$repo/releases/latest"
+            val apiResponse = fetchHttpText(apiUrl, isApi = true)
 
-            Log.d("AppUpdateManager", "Current version: $currentVersionCode, Remote version: $remoteVersionCode")
+            if (apiResponse != null) {
+                val json = JSONObject(apiResponse)
+                val tagName = json.optString("tag_name", "")
+                val body = json.optString("body", "Bug fixes and improvements.")
+                val assets = json.optJSONArray("assets")
 
-            if (remoteVersionCode > currentVersionCode && downloadUrl.isNotBlank()) {
-                val updateInfo = AppUpdateInfo(
-                    latestVersionCode = remoteVersionCode,
-                    latestVersionName = tagName,
-                    downloadUrl = downloadUrl,
-                    releaseNotes = body
-                )
-                _updateState.value = UpdateState.UpdateAvailable(updateInfo)
-            } else {
-                _updateState.value = UpdateState.Idle
+                var downloadUrl = ""
+                if (assets != null) {
+                    for (i in 0 until assets.length()) {
+                        val asset = assets.getJSONObject(i)
+                        val name = asset.optString("name", "")
+                        if (name.endsWith(".apk", ignoreCase = true)) {
+                            downloadUrl = asset.optString("browser_download_url", "")
+                            break
+                        }
+                    }
+                }
+
+                val remoteVersionCode = parseVersionCode(tagName)
+                val currentVersionCode = BuildConfig.VERSION_CODE
+
+                if (remoteVersionCode > currentVersionCode && downloadUrl.isNotBlank()) {
+                    _updateState.value = UpdateState.UpdateAvailable(
+                        AppUpdateInfo(
+                            latestVersionCode = remoteVersionCode,
+                            latestVersionName = tagName,
+                            downloadUrl = downloadUrl,
+                            releaseNotes = body
+                        )
+                    )
+                    return@withContext
+                }
             }
+
+            _updateState.value = UpdateState.Idle
         } catch (e: Exception) {
             Log.e("AppUpdateManager", "Failed to check update", e)
             _updateState.value = UpdateState.Idle
+        }
+    }
+
+    private fun fetchHttpText(urlString: String, isApi: Boolean = false): String? {
+        return try {
+            val url = URL(urlString)
+            val conn = (url.openConnection() as HttpURLConnection).apply {
+                connectTimeout = 8000
+                readTimeout = 8000
+                if (isApi) {
+                    setRequestProperty("Accept", "application/vnd.github.v3+json")
+                }
+                setRequestProperty("User-Agent", "RepLock-App")
+            }
+            if (conn.responseCode in 200..299) {
+                conn.inputStream.bufferedReader().use(BufferedReader::readText)
+            } else {
+                null
+            }
+        } catch (e: Exception) {
+            null
         }
     }
 
