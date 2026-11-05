@@ -42,6 +42,7 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.core.content.ContextCompat
+import com.fitness.squatcounter.domain.ExerciseType
 import com.fitness.squatcounter.domain.RejectionReason
 import com.fitness.squatcounter.domain.SquatMode
 import com.fitness.squatcounter.session.SessionEndReason
@@ -137,7 +138,6 @@ fun SquatScreen(
                 uiState = uiState,
                 showDebug = showDebug,
                 onToggleDebug = { showDebug = !showDebug },
-                onFlipCamera = { viewModel.toggleCamera() },
                 onOpenBlocker = onOpenBlocker
             )
 
@@ -149,7 +149,7 @@ fun SquatScreen(
                     .background(Color.Black)
             ) {
                 CameraPreview(
-                    useFrontCamera = uiState.useFrontCamera,
+                    useFrontCamera = true, // front camera only while we test the exercises
                     onFrame = { imageProxy, isFrontCamera ->
                         viewModel.onCameraFrame(imageProxy, isFrontCamera)
                     }
@@ -176,7 +176,8 @@ fun SquatScreen(
             BottomPanel(
                 uiState = uiState,
                 onStart = { viewModel.startSession() },
-                onStop = { viewModel.stopSession() }
+                onStop = { viewModel.stopSession() },
+                onSelectExercise = { viewModel.selectExercise(it) }
             )
         }
     }
@@ -187,7 +188,6 @@ private fun TopBar(
     uiState: SquatUiState,
     showDebug: Boolean,
     onToggleDebug: () -> Unit,
-    onFlipCamera: () -> Unit,
     onOpenBlocker: () -> Unit
 ) {
     Row(
@@ -204,15 +204,8 @@ private fun TopBar(
 
         Spacer(modifier = Modifier.weight(1f))
 
-        // Camera and blocker settings are only offered between sessions.
+        // The blocker is only offered between sessions.
         if (!uiState.sessionPhase.isLive) {
-            Chip(
-                text = if (uiState.useFrontCamera) "Front cam" else "Back cam",
-                background = Slate,
-                textColor = Color.White,
-                onClick = onFlipCamera
-            )
-            Spacer(modifier = Modifier.width(6.dp))
             Chip(
                 text = "Blocker",
                 background = Slate,
@@ -246,7 +239,7 @@ private fun BoxScope.CameraMessages(uiState: SquatUiState) {
 
         SessionPhase.SETUP_CHECK -> {
             Pill(
-                text = setupText(uiState.setupProblem),
+                text = setupText(uiState.setupProblem, uiState.selectedExercise),
                 color = if (uiState.setupProblem == SetupProblem.NONE) Blue else Amber,
                 modifier = Modifier
                     .align(Alignment.TopCenter)
@@ -272,7 +265,8 @@ private fun BoxScope.CameraMessages(uiState: SquatUiState) {
 private fun BottomPanel(
     uiState: SquatUiState,
     onStart: () -> Unit,
-    onStop: () -> Unit
+    onStop: () -> Unit,
+    onSelectExercise: (ExerciseType) -> Unit
 ) {
     Column(
         modifier = Modifier
@@ -297,14 +291,23 @@ private fun BottomPanel(
                     )
                     Spacer(modifier = Modifier.height(12.dp))
                 }
+                ExercisePicker(
+                    selected = uiState.selectedExercise,
+                    onSelect = onSelectExercise
+                )
+                Spacer(modifier = Modifier.height(12.dp))
                 BigButton(
-                    text = if (uiState.sessionPhase == SessionPhase.ENDED) "START NEW SESSION" else "START SQUATS",
+                    text = if (uiState.sessionPhase == SessionPhase.ENDED) {
+                        "START NEW SESSION"
+                    } else {
+                        "START " + uiState.selectedExercise.label.uppercase()
+                    },
                     color = Blue,
                     onClick = onStart
                 )
                 Spacer(modifier = Modifier.height(8.dp))
                 Text(
-                    text = "Prop the phone up so your shoulders and hips are in view. Front or back camera both work. Showing your whole body is the most accurate.",
+                    text = hintText(uiState.selectedExercise),
                     color = Muted,
                     fontSize = 12.sp,
                     textAlign = TextAlign.Center
@@ -331,10 +334,10 @@ private fun BottomPanel(
                 )
                 Text(text = "REPS", color = Muted, fontSize = 12.sp, fontWeight = FontWeight.Bold)
                 Text(
-                    text = if (uiState.squatMode == SquatMode.CLOSE_UP) {
-                        "Close-up mode (shoulders and hips)"
-                    } else {
-                        "Full-body mode"
+                    text = when {
+                        uiState.selectedExercise != ExerciseType.SQUATS -> uiState.selectedExercise.label
+                        uiState.squatMode == SquatMode.CLOSE_UP -> "Close-up mode (shoulders and hips)"
+                        else -> "Full-body mode"
                     },
                     color = Muted,
                     fontSize = 11.sp
@@ -399,6 +402,16 @@ private fun DebugPanel(
                 fontFamily = FontFamily.Monospace
             )
         }
+        if (uiState.exerciseDebug.isNotEmpty()) {
+            for (line in uiState.exerciseDebug.split("\n")) {
+                Text(
+                    text = line,
+                    color = Color.White,
+                    fontSize = 11.sp,
+                    fontFamily = FontFamily.Monospace
+                )
+            }
+        }
         uiState.errorMessage?.let {
             Text(text = it, color = Amber, fontSize = 11.sp)
         }
@@ -462,20 +475,50 @@ private fun BigButton(text: String, color: Color, onClick: () -> Unit) {
     }
 }
 
-private fun setupText(problem: SetupProblem): String = when (problem) {
+@Composable
+private fun ExercisePicker(
+    selected: ExerciseType,
+    onSelect: (ExerciseType) -> Unit
+) {
+    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+        for (type in ExerciseType.values()) {
+            Chip(
+                text = type.label,
+                background = if (type == selected) Blue else Slate,
+                textColor = Color.White,
+                onClick = { onSelect(type) }
+            )
+        }
+    }
+}
+
+private fun hintText(exercise: ExerciseType): String = when (exercise) {
+    ExerciseType.SQUATS ->
+        "Prop the phone up so your shoulders and hips are in view. Showing your whole body is the most accurate."
+    ExerciseType.PUSHUPS ->
+        "Put the phone on the floor in front of you, tilted up, so your head, shoulders and hands are in view. Be in the top push-up position when the countdown ends."
+}
+
+private fun setupText(problem: SetupProblem, exercise: ExerciseType): String = when (problem) {
     SetupProblem.NONE -> "Looks good. Hold your position."
-    SetupProblem.BODY_NOT_VISIBLE -> "Keep your shoulders and hips in view"
+    SetupProblem.BODY_NOT_VISIBLE ->
+        if (exercise == ExerciseType.PUSHUPS) {
+            "Keep your head, shoulders and hands in view"
+        } else {
+            "Keep your shoulders and hips in view"
+        }
     SetupProblem.FEED_LOST -> "Camera feed lost or frozen"
     SetupProblem.PHONE_MOVING -> "Put the phone down and keep it still"
 }
 
 private fun pausedText(uiState: SquatUiState): String =
     if (uiState.setupProblem == SetupProblem.BODY_NOT_VISIBLE &&
+        uiState.selectedExercise == ExerciseType.SQUATS &&
         uiState.squatMode == SquatMode.FULL_BODY
     ) {
         "Paused: keep your whole body in view"
     } else {
-        "Paused: " + setupText(uiState.setupProblem)
+        "Paused: " + setupText(uiState.setupProblem, uiState.selectedExercise)
     }
 
 private fun endText(reason: SessionEndReason?): String = when (reason) {

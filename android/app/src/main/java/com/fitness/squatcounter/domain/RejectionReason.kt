@@ -9,5 +9,6 @@ enum class RejectionReason(val displayName: String) {
     TOO_SLOW("Rep too slow: maximum duration exceeded"),
     TRACKING_LOST_DURING_REP("Rep invalid: person lost from camera"),
     SCALE_CHANGED("Rep invalid: you moved toward or away from the camera"),
+    HEAD_ONLY_MOVEMENT("Rep invalid: only the head moved, shoulders did not drop"),
     NONE("None")
 }

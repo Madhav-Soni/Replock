@@ -12,6 +12,9 @@ import com.fitness.squatcounter.domain.AngleCalculator
 import com.fitness.squatcounter.domain.AngleSmoother
 import com.fitness.squatcounter.domain.CloseUpSquatConfig
 import com.fitness.squatcounter.domain.CloseUpSquatStateMachine
+import com.fitness.squatcounter.domain.ExerciseDetector
+import com.fitness.squatcounter.domain.ExerciseRegistry
+import com.fitness.squatcounter.domain.ExerciseType
 import com.fitness.squatcounter.domain.FullBodyPose
 import com.fitness.squatcounter.domain.LandmarkPoint
 import com.fitness.squatcounter.domain.PoseFeatures
@@ -75,7 +78,10 @@ data class SquatUiState(
     // Debug: best values reached since the session started
     val peakDrop: Float = 0f,
     val lowestKnee: Float = 180f,
-    val trackingLostCount: Int = 0
+    val trackingLostCount: Int = 0,
+    // Which exercise is selected, and extra debug lines from its detector
+    val selectedExercise: ExerciseType = ExerciseType.SQUATS,
+    val exerciseDebug: String = ""
 ) {
     /** Screen stays on only while a session is live. */
     val keepScreenOn: Boolean get() = sessionPhase.isLive
@@ -110,6 +116,8 @@ class SquatViewModel(
     private var fullBodySinceMs: Long? = null
     private var lastFrameMs = 0L
     private var trackingLostCount = 0
+    private var selectedExercise = ExerciseType.SQUATS
+    private var detector: ExerciseDetector? = null
 
     // Read on the camera thread, written on the main thread.
     @Volatile
@@ -195,6 +203,25 @@ class SquatViewModel(
         _uiState.update { it.copy(useFrontCamera = useFront) }
     }
 
+    /** Choose which exercise to do. Not allowed while a session is live. */
+    fun selectExercise(type: ExerciseType) {
+        if (session.phase.isLive || type == selectedExercise) return
+        selectedExercise = type
+        detector = ExerciseRegistry.create(type)?.also {
+            it.onEventListener = { event -> handleSquatEvent(event) }
+        }
+        _uiState.update {
+            it.copy(
+                selectedExercise = type,
+                repCount = 0,
+                currentState = SquatState.STANDING,
+                lastRejectionReason = RejectionReason.NONE,
+                rejectionDetail = null,
+                exerciseDebug = ""
+            )
+        }
+    }
+
     fun startSession() {
         val now = SystemClock.uptimeMillis()
         lastBodyVisible = false
@@ -222,6 +249,7 @@ class SquatViewModel(
         hipSmoother.reset()
         stateMachine.reset()
         closeUpMachine.reset()
+        detector?.reset()
         sessionEarnedSeconds = 0
         _uiState.update {
             it.copy(
@@ -276,26 +304,29 @@ class SquatViewModel(
         feedMonitor.onFrame(timestampMs, allLandmarks)
 
         val threshold = config.visibilityConfidenceThreshold
+        val exerciseDetector = detector
         val fullBodyVisible = pose != null && pose.isFullBodyVisible(threshold)
         val upperBody = UpperBodyExtractor.extract(allLandmarks, threshold)
 
         // How long shoulders, hips, knees AND ankles have been continuously visible.
-        // Used to pick the detection mode when the session starts.
+        // Used to pick the squat detection mode when the session starts.
         fullBodySinceMs = if (fullBodyVisible) (fullBodySinceMs ?: timestampMs) else null
 
-        // Setup and countdown only need shoulders + hips. Once a session is running,
-        // the locked mode decides what must be visible.
+        // What must be visible depends on the exercise. For squats, setup and countdown only
+        // need shoulders + hips; once running, the locked squat mode decides.
         val phaseBefore = session.phase
-        lastBodyVisible = if (phaseBefore == SessionPhase.ACTIVE || phaseBefore == SessionPhase.PAUSED) {
-            if (activeMode == SquatMode.FULL_BODY) fullBodyVisible else upperBody.isVisible
-        } else {
-            upperBody.isVisible
+        lastBodyVisible = when {
+            exerciseDetector != null ->
+                exerciseDetector.isBodyVisible(allLandmarks, threshold)
+            phaseBefore == SessionPhase.ACTIVE || phaseBefore == SessionPhase.PAUSED ->
+                if (activeMode == SquatMode.FULL_BODY) fullBodyVisible else upperBody.isVisible
+            else -> upperBody.isVisible
         }
 
         session.update(timestampMs, currentSignals(timestampMs))
         publishSessionUi(timestampMs)
 
-        // Knee and hip angles: used by full-body mode and shown in the debug panel.
+        // Knee and hip angles: used by full-body squats and shown in the debug panel.
         val fullFeatures = if (pose != null) {
             val (rawKnee, rawHip) = AngleCalculator.extractAngles(pose, use3D = false)
             PoseFeatures(
@@ -315,11 +346,15 @@ class SquatViewModel(
         val phase = session.phase
         val counting = phase == SessionPhase.ACTIVE || phase == SessionPhase.PAUSED
         if (counting) {
-            when (activeMode) {
-                SquatMode.FULL_BODY ->
-                    stateMachine.processFrame(fullFeatures, timestampMs = timestampMs)
-                SquatMode.CLOSE_UP ->
-                    closeUpMachine.processFrame(upperBody, timestampMs)
+            if (exerciseDetector != null) {
+                exerciseDetector.processFrame(allLandmarks, timestampMs, threshold)
+            } else {
+                when (activeMode) {
+                    SquatMode.FULL_BODY ->
+                        stateMachine.processFrame(fullFeatures, timestampMs = timestampMs)
+                    SquatMode.CLOSE_UP ->
+                        closeUpMachine.processFrame(upperBody, timestampMs)
+                }
             }
         }
 
@@ -341,7 +376,8 @@ class SquatViewModel(
                     rejectionDetail = rejectionDetail(),
                     peakDrop = closeUpMachine.peakDropSinceStart,
                     lowestKnee = stateMachine.lowestKneeAngleSinceStart,
-                    trackingLostCount = trackingLostCount
+                    trackingLostCount = trackingLostCount,
+                    exerciseDebug = exerciseDetector?.debugInfo() ?: ""
                 )
             } else {
                 updated
@@ -349,21 +385,33 @@ class SquatViewModel(
         }
     }
 
-    private fun activeRepCount(): Int =
-        if (activeMode == SquatMode.FULL_BODY) stateMachine.repCount else closeUpMachine.repCount
+    private fun activeRepCount(): Int {
+        val d = detector
+        if (d != null) return d.repCount
+        return if (activeMode == SquatMode.FULL_BODY) stateMachine.repCount else closeUpMachine.repCount
+    }
 
-    private fun activeState(): SquatState =
-        if (activeMode == SquatMode.FULL_BODY) stateMachine.currentState else closeUpMachine.currentState
+    private fun activeState(): SquatState {
+        val d = detector
+        if (d != null) return d.currentState
+        return if (activeMode == SquatMode.FULL_BODY) stateMachine.currentState else closeUpMachine.currentState
+    }
 
-    private fun activeRejection(): RejectionReason =
-        if (activeMode == SquatMode.FULL_BODY) {
+    private fun activeRejection(): RejectionReason {
+        val d = detector
+        if (d != null) return d.lastRejectionReason
+        return if (activeMode == SquatMode.FULL_BODY) {
             stateMachine.lastRejectionReason
         } else {
             closeUpMachine.lastRejectionReason
         }
+    }
 
-    /** For a rep rejected as not deep enough: how far it got versus what is needed. */
+    /** For a rejected rep: how far it got versus what is needed. */
     private fun rejectionDetail(): String? {
+        val d = detector
+        if (d != null) return d.rejectionDetail()
+
         if (activeRejection() != RejectionReason.NOT_DEEP_ENOUGH) return null
         return if (activeMode == SquatMode.CLOSE_UP) {
             "hips dropped %.2f, needs %.2f".format(
@@ -433,6 +481,7 @@ class SquatViewModel(
                 hipSmoother.reset()
                 stateMachine.reset()
                 closeUpMachine.reset()
+                detector?.reset()
                 trackingLostCount = 0
                 _uiState.update {
                     it.copy(
@@ -448,8 +497,9 @@ class SquatViewModel(
                         trackingLostCount = 0
                     )
                 }
+                val exerciseKey = selectedExercise.creditKey
                 enqueueLedgerWrite {
-                    creditRepository.startSession(id, CreditConfig.EXERCISE_SQUATS)
+                    creditRepository.startSession(id, exerciseKey)
                 }
             }
 
@@ -477,11 +527,12 @@ class SquatViewModel(
                 if (phase != SessionPhase.ACTIVE) return
                 audioManager.speakRep(event.repCount)
                 val repIndex = event.repCount
+                val exerciseKey = selectedExercise.creditKey
                 enqueueLedgerWrite {
                     val earned = creditRepository.recordValidatedRep(
                         sessionId,
                         repIndex,
-                        CreditConfig.EXERCISE_SQUATS
+                        exerciseKey
                     )
                     sessionEarnedSeconds += earned
                     _uiState.update { it.copy(sessionEarnedSeconds = sessionEarnedSeconds) }
