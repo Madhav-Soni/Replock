@@ -71,7 +71,11 @@ data class SquatUiState(
     val dropRatio: Float = 0f,
     val torsoScale: Float = 1f,
     // Why the last rep was rejected, with the real numbers (null if not applicable)
-    val rejectionDetail: String? = null
+    val rejectionDetail: String? = null,
+    // Debug: best values reached since the session started
+    val peakDrop: Float = 0f,
+    val lowestKnee: Float = 180f,
+    val trackingLostCount: Int = 0
 ) {
     /** Screen stays on only while a session is live. */
     val keepScreenOn: Boolean get() = sessionPhase.isLive
@@ -105,6 +109,7 @@ class SquatViewModel(
     private var activeMode = SquatMode.FULL_BODY
     private var fullBodySinceMs: Long? = null
     private var lastFrameMs = 0L
+    private var trackingLostCount = 0
 
     // Read on the camera thread, written on the main thread.
     @Volatile
@@ -333,7 +338,10 @@ class SquatViewModel(
                     lastRejectionReason = activeRejection(),
                     dropRatio = closeUpMachine.dropRatio,
                     torsoScale = closeUpMachine.torsoScale,
-                    rejectionDetail = rejectionDetail()
+                    rejectionDetail = rejectionDetail(),
+                    peakDrop = closeUpMachine.peakDropSinceStart,
+                    lowestKnee = stateMachine.lowestKneeAngleSinceStart,
+                    trackingLostCount = trackingLostCount
                 )
             } else {
                 updated
@@ -425,6 +433,7 @@ class SquatViewModel(
                 hipSmoother.reset()
                 stateMachine.reset()
                 closeUpMachine.reset()
+                trackingLostCount = 0
                 _uiState.update {
                     it.copy(
                         squatMode = activeMode,
@@ -433,7 +442,10 @@ class SquatViewModel(
                         lastRejectionReason = RejectionReason.NONE,
                         dropRatio = 0f,
                         torsoScale = 1f,
-                        rejectionDetail = null
+                        rejectionDetail = null,
+                        peakDrop = 0f,
+                        lowestKnee = 180f,
+                        trackingLostCount = 0
                     )
                 }
                 enqueueLedgerWrite {
@@ -485,6 +497,7 @@ class SquatViewModel(
             is SquatEvent.TrackingLost -> {
                 if (phase == SessionPhase.ACTIVE || phase == SessionPhase.PAUSED) {
                     audioManager.playTrackingLostBeep()
+                    trackingLostCount++
                 }
             }
 

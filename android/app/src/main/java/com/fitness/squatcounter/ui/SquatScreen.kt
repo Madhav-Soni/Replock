@@ -386,7 +386,10 @@ private fun DebugPanel(
             "Session ${uiState.sessionPhase}",
             "Mode    ${uiState.squatMode}",
             "Drop    ${"%.2f".format(uiState.dropRatio)} torso",
-            "Scale   ${"%.2f".format(uiState.torsoScale)}"
+            "Scale   ${"%.2f".format(uiState.torsoScale)}",
+            "PeakDrop ${"%.2f".format(uiState.peakDrop)}",
+            "MinKnee  ${"%.0f".format(uiState.lowestKnee)} deg",
+            "Lost     ${uiState.trackingLostCount} times"
         )
         for (line in lines) {
             Text(

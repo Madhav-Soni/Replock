@@ -32,6 +32,10 @@ class SquatStateMachine(
     var lastRepMinKneeAngle: Float = 180.0f
         private set
 
+    /** Smallest knee angle since the session started (degrees). For the Debug panel. */
+    var lowestKneeAngleSinceStart: Float = 180.0f
+        private set
+
     /** Whether the hips reached knee level in the most recent finished rep. */
     var lastRepHipsReachedKneeLevel: Boolean = false
         private set
@@ -76,6 +80,7 @@ class SquatStateMachine(
         hasReachedBottom = false
         hipsReachedKneeLevel = false
         minKneeAngleInRep = 180.0f
+        lowestKneeAngleSinceStart = 180.0f
         trackingLostDuringRep = false
         repStartTimeMs = 0L
     }
@@ -104,6 +109,8 @@ class SquatStateMachine(
                 emitEvent(SquatEvent.TrackingRegained)
             }
         }
+
+        lowestKneeAngleSinceStart = min(lowestKneeAngleSinceStart, kneeAngle)
 
         // 2. State Machine transitions
         when (currentState) {

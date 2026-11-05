@@ -76,6 +76,10 @@ class CloseUpSquatStateMachine(
     var torsoScale: Float = 1f
         private set
 
+    /** Largest hip drop since the session started (torso lengths). For the Debug panel. */
+    var peakDropSinceStart: Float = 0f
+        private set
+
     /** Deepest hip drop reached in the most recent finished rep (torso lengths). */
     var lastRepPeakDrop: Float = 0f
         private set
@@ -109,6 +113,7 @@ class CloseUpSquatStateMachine(
         dropRatio = 0f
         torsoScale = 1f
         lastRepPeakDrop = 0f
+        peakDropSinceStart = 0f
         baselineHipY = 0f
         baselineTorso = 1f
         calibrationCount = 0
@@ -167,6 +172,7 @@ class CloseUpSquatStateMachine(
 
         dropRatio = (smoothedHipY - baselineHipY) / baselineTorso
         torsoScale = smoothedTorso / baselineTorso
+        peakDropSinceStart = max(peakDropSinceStart, dropRatio)
 
         // 3. State transitions
         when (currentState) {
