@@ -25,9 +25,16 @@ data class SquatConfig(
 
     /**
      * Whether hip height must reach knee height (hips at or below knee level)
-     * during the rep to qualify as valid depth.
+     * during the rep to qualify as valid depth when the knee angle reached the bottom.
      */
     val requireHipsAtKneeLevel: Boolean = true,
+
+    /**
+     * Whether hips reaching knee height on their own counts as a full-depth squat, even if the
+     * 2D knee angle never got down to [bottomKneeAngle]. From a front camera the knee angle is
+     * hard to measure, but hip height against knee height is reliable.
+     */
+    val acceptHipsAtKneeLevelAlone: Boolean = true,
 
     /**
      * Minimum confidence score for each required body landmark (shoulders, hips, knees, ankles)

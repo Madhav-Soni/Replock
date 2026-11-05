@@ -137,6 +137,10 @@ class SquatStateMachine(
                 if (kneeAngle <= config.bottomKneeAngle) {
                     hasReachedBottom = true
                     transitionTo(SquatState.BOTTOM)
+                } else if (config.acceptHipsAtKneeLevelAlone && hipsBelowKnees) {
+                    // Hips at knee height is a full-depth squat even if the 2D knee angle
+                    // did not get down to the bottom threshold.
+                    transitionTo(SquatState.BOTTOM)
                 } else if (kneeAngle >= (minKneeAngleInRep + config.hysteresis * 1.5f)) {
                     // User started moving back up before reaching bottom threshold -> Half Rep!
                     transitionTo(SquatState.ASCENDING)
@@ -192,8 +196,11 @@ class SquatStateMachine(
             return
         }
 
-        // Check depth criteria: knee angle reached bottom AND (if required) hips at/below knee level
-        val depthSatisfied = hasReachedBottom && (!config.requireHipsAtKneeLevel || hipsReachedKneeLevel)
+        // Depth: knee angle reached the bottom (with hips at knee level if required),
+        // OR the hips reached knee height on their own (when that option is on)
+        val kneeDepthOk = hasReachedBottom && (!config.requireHipsAtKneeLevel || hipsReachedKneeLevel)
+        val hipLevelOk = config.acceptHipsAtKneeLevelAlone && hipsReachedKneeLevel
+        val depthSatisfied = kneeDepthOk || hipLevelOk
 
         if (depthSatisfied) {
             repCount++
