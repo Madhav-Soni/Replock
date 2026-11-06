@@ -11,5 +11,7 @@ enum class RejectionReason(val displayName: String) {
     SCALE_CHANGED("Rep invalid: you moved toward or away from the camera"),
     HEAD_ONLY_MOVEMENT("Rep invalid: only the head moved, shoulders did not drop"),
     POSTURE_BROKEN("Hold broken: keep your body steady in the plank position"),
+    NOT_A_LUNGE("Rep invalid: one knee must drop lower than the other"),
+    INCOMPLETE_JACK("Rep invalid: raise both hands overhead and spread your feet wide"),
     NONE("None")
 }

@@ -51,7 +51,28 @@ data class CreditConfig(
     /**
      * Daily plank earn cap (in screen-time seconds).
      */
-    val dailyPlankCapSeconds: Int = 1800
+    val dailyPlankCapSeconds: Int = 1800,
+
+    /**
+     * Screen-time seconds rewarded per validated LUNGE rep (either leg counts). A starting guess.
+     */
+    val lungeRewardSecondsPerRep: Int = 30,
+
+    /**
+     * Daily lunge earn cap (in screen-time seconds).
+     */
+    val dailyLungeCapSeconds: Int = 1800,
+
+    /**
+     * Screen-time seconds rewarded per validated JUMPING JACK. They are quick, so the rate is
+     * low per rep. A starting guess.
+     */
+    val jumpingJackRewardSecondsPerRep: Int = 10,
+
+    /**
+     * Daily jumping-jack earn cap (in screen-time seconds).
+     */
+    val dailyJumpingJackCapSeconds: Int = 1800
 ) {
     /**
      * Returns the reward rule for an exercise type, or null if the exercise is unknown.
@@ -61,6 +82,9 @@ data class CreditConfig(
         EXERCISE_SQUATS -> ExerciseReward(rewardRateSecondsPerRep, dailySquatCapSeconds)
         EXERCISE_PUSHUPS -> ExerciseReward(pushUpRewardSecondsPerRep, dailyPushUpCapSeconds)
         EXERCISE_PLANK -> ExerciseReward(plankRewardSecondsPerUnit, dailyPlankCapSeconds)
+        EXERCISE_LUNGES -> ExerciseReward(lungeRewardSecondsPerRep, dailyLungeCapSeconds)
+        EXERCISE_JUMPING_JACKS ->
+            ExerciseReward(jumpingJackRewardSecondsPerRep, dailyJumpingJackCapSeconds)
         else -> null
     }
 
@@ -68,5 +92,7 @@ data class CreditConfig(
         const val EXERCISE_SQUATS = "squats"
         const val EXERCISE_PUSHUPS = "pushups"
         const val EXERCISE_PLANK = "plank"
+        const val EXERCISE_LUNGES = "lunges"
+        const val EXERCISE_JUMPING_JACKS = "jumpingjacks"
     }
 }

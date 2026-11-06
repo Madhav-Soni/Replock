@@ -52,5 +52,7 @@ object ExerciseRegistry {
         ExerciseType.SQUATS -> null
         ExerciseType.PUSHUPS -> PushUpDetector()
         ExerciseType.PLANK -> PlankDetector()
+        ExerciseType.LUNGES -> LungeDetector()
+        ExerciseType.JUMPING_JACKS -> JumpingJackDetector()
     }
 }

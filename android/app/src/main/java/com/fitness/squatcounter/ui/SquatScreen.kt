@@ -494,15 +494,20 @@ private fun hintText(exercise: ExerciseType): String = when (exercise) {
         "Put the phone on the floor in front of you, tilted up, so your head, shoulders and hands are in view. Be in the top push-up position when the countdown ends."
     ExerciseType.PLANK ->
         "Put the phone on the floor in front of you, tilted up, so your head, shoulders and hands are in view. Get into your plank before the countdown ends and hold it still. Every 5 seconds earns time."
+    ExerciseType.LUNGES ->
+        "Prop the phone up a few steps back so your shoulders, hips and knees stay in view while you lunge. Stand upright until the countdown ends. Either leg counts."
+    ExerciseType.JUMPING_JACKS ->
+        "Prop the phone up and stand far enough back to show your whole body, with room above your head for your hands. Start with your arms down and feet together."
 }
 
 private fun setupText(problem: SetupProblem, exercise: ExerciseType): String = when (problem) {
     SetupProblem.NONE -> "Looks good. Hold your position."
     SetupProblem.BODY_NOT_VISIBLE ->
-        if (exercise != ExerciseType.SQUATS) {
-            "Keep your head, shoulders and hands in view"
-        } else {
-            "Keep your shoulders and hips in view"
+        when (exercise) {
+            ExerciseType.SQUATS -> "Keep your shoulders and hips in view"
+            ExerciseType.LUNGES -> "Keep your shoulders, hips and knees in view"
+            ExerciseType.JUMPING_JACKS -> "Step back: show your whole body, with room above your head"
+            else -> "Keep your head, shoulders and hands in view"
         }
     SetupProblem.FEED_LOST -> "Camera feed lost or frozen"
     SetupProblem.PHONE_MOVING -> "Put the phone down and keep it still"

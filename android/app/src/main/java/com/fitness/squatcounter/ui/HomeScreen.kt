@@ -180,6 +180,10 @@ private fun descriptionOf(type: ExerciseType): String = when (type) {
         "Phone on the floor in front of you. Keep your head, shoulders and hands in view."
     ExerciseType.PLANK ->
         "Phone on the floor in front of you. Hold still in your plank. Every 5 seconds counts."
+    ExerciseType.LUNGES ->
+        "Front camera, a few steps back. Keep your shoulders, hips and knees in view. One knee must drop lower than the other."
+    ExerciseType.JUMPING_JACKS ->
+        "Front camera, far enough back for your whole body. Hands overhead and feet wide, then back to closed."
 }
 
 private fun rewardOf(type: ExerciseType): String {

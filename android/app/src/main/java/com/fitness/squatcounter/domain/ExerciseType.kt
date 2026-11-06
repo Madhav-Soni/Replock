@@ -9,5 +9,7 @@ import com.fitness.squatcounter.data.CreditConfig
 enum class ExerciseType(val label: String, val creditKey: String) {
     SQUATS("Squats", CreditConfig.EXERCISE_SQUATS),
     PUSHUPS("Push-ups", CreditConfig.EXERCISE_PUSHUPS),
-    PLANK("Plank", CreditConfig.EXERCISE_PLANK)
+    PLANK("Plank", CreditConfig.EXERCISE_PLANK),
+    LUNGES("Lunges", CreditConfig.EXERCISE_LUNGES),
+    JUMPING_JACKS("Jumping jacks", CreditConfig.EXERCISE_JUMPING_JACKS)
 }
