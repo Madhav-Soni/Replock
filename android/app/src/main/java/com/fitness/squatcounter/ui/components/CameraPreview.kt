@@ -14,6 +14,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalLifecycleOwner
 import androidx.compose.ui.viewinterop.AndroidView
 import androidx.core.content.ContextCompat
@@ -37,6 +38,7 @@ fun CameraPreview(
     modifier: Modifier = Modifier,
     onFrame: (ImageProxy, Boolean) -> Unit
 ) {
+    val context = LocalContext.current
     val lifecycleOwner = LocalLifecycleOwner.current
     val cameraExecutor = remember { Executors.newSingleThreadExecutor() }
     val currentOnFrame by rememberUpdatedState(onFrame)
@@ -46,6 +48,21 @@ fun CameraPreview(
 
     DisposableEffect(Unit) {
         onDispose {
+            // Release the camera when this screen is left, so it is not kept open in the background.
+            val providerFuture = ProcessCameraProvider.getInstance(context)
+            if (providerFuture.isDone) {
+                try {
+                    providerFuture.get().unbindAll()
+                } catch (_: Exception) {
+                }
+            } else {
+                providerFuture.addListener({
+                    try {
+                        providerFuture.get().unbindAll()
+                    } catch (_: Exception) {
+                    }
+                }, ContextCompat.getMainExecutor(context))
+            }
             cameraExecutor.shutdown()
         }
     }

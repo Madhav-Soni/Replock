@@ -1,7 +1,7 @@
 {
-  "versionCode": 2,
-  "versionName": "1.1",
+  "versionCode": 3,
+  "versionName": "1.2",
   "downloadUrl": "https://github.com/Madhav-Soni/Replock/releases/download/latest/app-debug.apk",
-  "releaseNotes": "Updated app name to Replock and added custom icon"
+  "releaseNotes": "Update app name to Replock and adaptive launcher icon"
 }
 

@@ -15,6 +15,17 @@ interface ExerciseDetector {
 
     var onEventListener: ((SquatEvent) -> Unit)?
 
+    /** Label under the big number on screen. */
+    val countLabel: String
+        get() = "REPS"
+
+    /** The big number on screen: reps for rep exercises, seconds for a hold. */
+    val displayCount: Int
+        get() = repCount
+
+    /** The number spoken aloud when the Nth counted unit is completed. */
+    fun spokenNumber(unitCount: Int): Int = unitCount
+
     /** True when everything this exercise needs is clearly visible in the frame. */
     fun isBodyVisible(landmarks: List<LandmarkPoint>, visibilityThreshold: Float): Boolean
 
@@ -40,5 +51,6 @@ object ExerciseRegistry {
     fun create(type: ExerciseType): ExerciseDetector? = when (type) {
         ExerciseType.SQUATS -> null
         ExerciseType.PUSHUPS -> PushUpDetector()
+        ExerciseType.PLANK -> PlankDetector()
     }
 }

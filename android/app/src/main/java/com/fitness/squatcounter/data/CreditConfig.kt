@@ -40,7 +40,18 @@ data class CreditConfig(
     /**
      * Daily push-up earn cap (in screen-time seconds).
      */
-    val dailyPushUpCapSeconds: Int = 1800
+    val dailyPushUpCapSeconds: Int = 1800,
+
+    /**
+     * Screen-time seconds rewarded per completed PLANK unit (5 seconds of valid hold).
+     * 30 per 5 s means a one-minute plank earns 6 minutes. A starting guess.
+     */
+    val plankRewardSecondsPerUnit: Int = 30,
+
+    /**
+     * Daily plank earn cap (in screen-time seconds).
+     */
+    val dailyPlankCapSeconds: Int = 1800
 ) {
     /**
      * Returns the reward rule for an exercise type, or null if the exercise is unknown.
@@ -49,11 +60,13 @@ data class CreditConfig(
     fun rewardFor(exerciseType: String): ExerciseReward? = when (exerciseType) {
         EXERCISE_SQUATS -> ExerciseReward(rewardRateSecondsPerRep, dailySquatCapSeconds)
         EXERCISE_PUSHUPS -> ExerciseReward(pushUpRewardSecondsPerRep, dailyPushUpCapSeconds)
+        EXERCISE_PLANK -> ExerciseReward(plankRewardSecondsPerUnit, dailyPlankCapSeconds)
         else -> null
     }
 
     companion object {
         const val EXERCISE_SQUATS = "squats"
         const val EXERCISE_PUSHUPS = "pushups"
+        const val EXERCISE_PLANK = "plank"
     }
 }

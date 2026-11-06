@@ -81,7 +81,9 @@ data class SquatUiState(
     val trackingLostCount: Int = 0,
     // Which exercise is selected, and extra debug lines from its detector
     val selectedExercise: ExerciseType = ExerciseType.SQUATS,
-    val exerciseDebug: String = ""
+    val exerciseDebug: String = "",
+    // Label under the big number: "REPS", or "SECONDS" for a hold
+    val countLabel: String = "REPS"
 ) {
     /** Screen stays on only while a session is live. */
     val keepScreenOn: Boolean get() = sessionPhase.isLive
@@ -217,7 +219,8 @@ class SquatViewModel(
                 currentState = SquatState.STANDING,
                 lastRejectionReason = RejectionReason.NONE,
                 rejectionDetail = null,
-                exerciseDebug = ""
+                exerciseDebug = "",
+                countLabel = detector?.countLabel ?: "REPS"
             )
         }
     }
@@ -377,7 +380,8 @@ class SquatViewModel(
                     peakDrop = closeUpMachine.peakDropSinceStart,
                     lowestKnee = stateMachine.lowestKneeAngleSinceStart,
                     trackingLostCount = trackingLostCount,
-                    exerciseDebug = exerciseDetector?.debugInfo() ?: ""
+                    exerciseDebug = exerciseDetector?.debugInfo() ?: "",
+                    countLabel = exerciseDetector?.countLabel ?: "REPS"
                 )
             } else {
                 updated
@@ -387,7 +391,7 @@ class SquatViewModel(
 
     private fun activeRepCount(): Int {
         val d = detector
-        if (d != null) return d.repCount
+        if (d != null) return d.displayCount
         return if (activeMode == SquatMode.FULL_BODY) stateMachine.repCount else closeUpMachine.repCount
     }
 
@@ -525,7 +529,7 @@ class SquatViewModel(
                 val sessionId = activeSessionId ?: return
                 // Reps only count while ACTIVE. Never during setup, countdown or pause.
                 if (phase != SessionPhase.ACTIVE) return
-                audioManager.speakRep(event.repCount)
+                audioManager.speakRep(detector?.spokenNumber(event.repCount) ?: event.repCount)
                 val repIndex = event.repCount
                 val exerciseKey = selectedExercise.creditKey
                 enqueueLedgerWrite {

@@ -10,5 +10,6 @@ enum class RejectionReason(val displayName: String) {
     TRACKING_LOST_DURING_REP("Rep invalid: person lost from camera"),
     SCALE_CHANGED("Rep invalid: you moved toward or away from the camera"),
     HEAD_ONLY_MOVEMENT("Rep invalid: only the head moved, shoulders did not drop"),
+    POSTURE_BROKEN("Hold broken: keep your body steady in the plank position"),
     NONE("None")
 }
