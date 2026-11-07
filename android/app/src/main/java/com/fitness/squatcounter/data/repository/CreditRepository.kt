@@ -86,7 +86,8 @@ class CreditRepository(
     }
 
     /**
-     * Ends a session with given status.
+     * Closes a session with the given status (COMPLETED for a clean stop, INTERRUPTED otherwise).
+     * A closed session can never be credited again.
      */
     suspend fun endSession(sessionId: String, status: SessionStatus) {
         val time = getEffectiveTimeSnapshot()
@@ -95,8 +96,8 @@ class CreditRepository(
 
     /**
      * Records a validated rep in a single Room transaction.
-     * Enforces daily earn caps and idempotency.
-     * Returns the earned credits awarded (0 if cap reached or already credited).
+     * Enforces per-exercise and total daily earn caps, and idempotency.
+     * Returns the earned credits awarded (0 if cap reached, already credited, or unknown exercise).
      */
     suspend fun recordValidatedRep(
         sessionId: String,
@@ -116,12 +117,18 @@ class CreditRepository(
 
             // Calculate current daily earnings
             val totalEarnedToday = ledgerDao.getEarnedSecondsBetween(startOfDayMs, endOfDayMs)
-            val exerciseEarnedToday = ledgerDao.getEarnedSecondsForExerciseBetween(startOfDayMs, endOfDayMs, exerciseType)
+            val exerciseEarnedToday =
+                ledgerDao.getEarnedSecondsForExerciseBetween(startOfDayMs, endOfDayMs, exerciseType)
+
+            // Each exercise has its own rate and its own daily cap
+            val reward = config.rewardFor(exerciseType)
+            val rate = reward?.secondsPerRep ?: 0
+            val exerciseCap = reward?.dailyCapSeconds ?: 0
 
             val remainingTotalCap = maxOf(0, config.dailyTotalEarnCapSeconds - totalEarnedToday)
-            val remainingExerciseCap = maxOf(0, config.dailySquatCapSeconds - exerciseEarnedToday)
+            val remainingExerciseCap = maxOf(0, exerciseCap - exerciseEarnedToday)
 
-            val awardSeconds = minOf(config.rewardRateSecondsPerRep, remainingTotalCap, remainingExerciseCap)
+            val awardSeconds = minOf(rate, remainingTotalCap, remainingExerciseCap)
 
             if (awardSeconds > 0) {
                 val entry = LedgerEntryEntity(
@@ -180,12 +187,14 @@ class CreditRepository(
                 elapsedRealtimeMs = time.elapsedRealtimeMs,
                 bootCount = time.bootCount
             )
-            // Ensure pseudo-session exists for foreign key
+            // Ensure pseudo-session exists for foreign key.
+            // endTimeMs is set so stale-session cleanup never touches it.
             sessionDao.insertSession(
                 SessionEntity(
                     sessionId = entry.sessionId,
                     exerciseType = "system_spend",
                     startTimeMs = time.wallClockTimeMs,
+                    endTimeMs = time.wallClockTimeMs,
                     status = SessionStatus.COMPLETED
                 )
             )
@@ -205,6 +214,9 @@ class CreditRepository(
 
     /**
      * Derives balance from ledger entries with lazy expiration at end of next day.
+     *
+     * Spending is FIFO over credits that were still valid at the moment of the spend.
+     * Credits already expired at that moment cannot pay for it.
      */
     fun deriveBalance(entries: List<LedgerEntryEntity>, currentTimeMs: Long): Int {
         // Track unspent earned credits: list of Pair(expiryTimestampMs, remainingAmount)
@@ -218,6 +230,10 @@ class CreditRepository(
                     unspentCredits.add(Pair(expiryMs, entry.amountSeconds))
                 }
                 LedgerEntryType.SPEND -> {
+                    // Credits that had already expired when this spend happened are gone;
+                    // they must not absorb the spend and leave newer credits untouched.
+                    unspentCredits.removeAll { (expiry, _) -> expiry < entry.wallClockTimeMs }
+
                     var spendRemaining = entry.amountSeconds
                     val iterator = unspentCredits.listIterator()
                     while (iterator.hasNext() && spendRemaining > 0) {
