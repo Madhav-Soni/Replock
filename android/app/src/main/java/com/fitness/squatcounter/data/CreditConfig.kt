@@ -83,6 +83,7 @@ data class CreditConfig(
         EXERCISE_PUSHUPS -> ExerciseReward(pushUpRewardSecondsPerRep, dailyPushUpCapSeconds)
         EXERCISE_PLANK -> ExerciseReward(plankRewardSecondsPerUnit, dailyPlankCapSeconds)
         EXERCISE_LUNGES -> ExerciseReward(lungeRewardSecondsPerRep, dailyLungeCapSeconds)
+        EXERCISE_WALL_SIT -> ExerciseReward(plankRewardSecondsPerUnit, dailyPlankCapSeconds)
         EXERCISE_JUMPING_JACKS ->
             ExerciseReward(jumpingJackRewardSecondsPerRep, dailyJumpingJackCapSeconds)
         else -> null
@@ -93,6 +94,7 @@ data class CreditConfig(
         const val EXERCISE_PUSHUPS = "pushups"
         const val EXERCISE_PLANK = "plank"
         const val EXERCISE_LUNGES = "lunges"
+        const val EXERCISE_WALL_SIT = "wallsit"
         const val EXERCISE_JUMPING_JACKS = "jumpingjacks"
     }
 }
