@@ -1,8 +1,13 @@
 package com.fitness.squatcounter.blocker
 
+import android.content.Intent
+import android.net.Uri
+import android.provider.Settings
+import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -11,32 +16,38 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material3.Button
-import androidx.compose.material3.ButtonDefaults
-import androidx.compose.material3.Checkbox
-import androidx.compose.material3.CheckboxDefaults
+import androidx.compose.material3.Switch
+import androidx.compose.material3.SwitchDefaults
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import com.fitness.squatcounter.blocker.BlockerUiState
-import com.fitness.squatcounter.blocker.BlockerViewModel
+import com.fitness.squatcounter.ui.theme.AppBackground
+import com.fitness.squatcounter.ui.theme.AppChip
+import com.fitness.squatcounter.ui.theme.AppColors
+import com.fitness.squatcounter.ui.theme.CircleIconButton
+import com.fitness.squatcounter.ui.theme.surfaceCard
+import kotlin.math.abs
 
-private val ScreenBackground = Color(0xFF0B1220)
-private val CardBackground = Color(0xFF111827)
-private val MutedText = Color(0xFF9CA3AF)
-
+/**
+ * Pick which apps cost screen time, and see whether the blocking service is running.
+ */
 @Composable
 fun BlockerScreen(
     viewModel: BlockerViewModel,
@@ -45,80 +56,87 @@ fun BlockerScreen(
     val state by viewModel.uiState.collectAsState()
     val context = LocalContext.current
 
-    androidx.activity.compose.BackHandler(onBack = onBack)
+    BackHandler(onBack = onBack)
 
-    Column(
-        modifier = Modifier
-            .fillMaxSize()
-            .background(ScreenBackground)
-            .statusBarsPadding()
-            .navigationBarsPadding()
-            .padding(16.dp)
-    ) {
-        Row(verticalAlignment = Alignment.CenterVertically) {
-            Button(
-                onClick = onBack,
-                colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF374151)),
-                shape = RoundedCornerShape(8.dp)
-            ) {
-                Text(text = "Back", color = Color.White)
+    AppBackground {
+        Column(
+            modifier = Modifier
+                .fillMaxSize()
+                .statusBarsPadding()
+                .navigationBarsPadding()
+                .padding(horizontal = 16.dp, vertical = 12.dp)
+        ) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                CircleIconButton(text = "\u2039", onClick = onBack)
+                Spacer(modifier = Modifier.width(12.dp))
+                Column {
+                    Text(
+                        text = "App blocker",
+                        color = AppColors.TextPrimary,
+                        fontSize = 22.sp,
+                        fontWeight = FontWeight.Bold
+                    )
+                    Text(
+                        text = "Lock apps until you earn time",
+                        color = AppColors.TextMuted,
+                        fontSize = 12.sp
+                    )
+                }
             }
-            Spacer(modifier = Modifier.width(12.dp))
-            Text(
-                text = "Blocker",
-                color = Color.White,
-                fontSize = 22.sp,
-                fontWeight = androidx.compose.ui.text.font.FontWeight.Bold
+
+            Spacer(modifier = Modifier.height(14.dp))
+
+            StatusCard(
+                state = state,
+                onOpenAccessibility = {
+                    context.startActivity(Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS))
+                },
+                onOpenAppInfo = {
+                    context.startActivity(
+                        Intent(
+                            Settings.ACTION_APPLICATION_DETAILS_SETTINGS,
+                            Uri.parse("package:${context.packageName}")
+                        )
+                    )
+                }
             )
-        }
 
-        Spacer(modifier = Modifier.height(12.dp))
+            Spacer(modifier = Modifier.height(18.dp))
 
-        StatusCard(
-            state = state,
-            onOpenAccessibility = {
-                context.startActivity(android.content.Intent(android.provider.Settings.ACTION_ACCESSIBILITY_SETTINGS))
-            },
-            onOpenAppInfo = {
-                context.startActivity(
-                    android.content.Intent(
-                        android.provider.Settings.ACTION_APPLICATION_DETAILS_SETTINGS,
-                        android.net.Uri.parse("package:${context.packageName}")
-                    )
-                )
-            }
-        )
+            Text(
+                text = "Apps that cost screen time",
+                color = AppColors.TextPrimary,
+                fontSize = 17.sp,
+                fontWeight = FontWeight.Bold
+            )
+            Text(
+                text = "Switch on the apps you want locked. Phone, messages, settings and the launcher can never be blocked.",
+                color = AppColors.TextMuted,
+                fontSize = 12.sp
+            )
 
-        Spacer(modifier = Modifier.height(12.dp))
+            Spacer(modifier = Modifier.height(10.dp))
 
-        Text(
-            text = "Apps that cost screen time",
-            color = Color.White,
-            fontSize = 16.sp,
-            fontWeight = androidx.compose.ui.text.font.FontWeight.SemiBold
-        )
-        Text(
-            text = "Tick the apps you want locked until you earn time. Phone, messages, settings and the launcher can never be blocked.",
-            color = MutedText,
-            fontSize = 12.sp
-        )
-
-        Spacer(modifier = Modifier.height(8.dp))
-
-        if (state.loading) {
-            Text(text = "Loading apps...", color = MutedText)
-        } else {
-            LazyColumn(modifier = Modifier.weight(1f)) {
-                items(state.apps, key = { it.packageName }) { app ->
-                    val dueMs = state.pendingRemovals[app.packageName]
-                    val pendingText = dueMs?.let { "Unblocks in ${formatWait(it - state.trustedNowMs)}" }
-                    AppRow(
-                        label = app.label,
-                        packageName = app.packageName,
-                        blocked = app.packageName in state.blocked,
-                        pendingText = pendingText,
-                        onToggle = { viewModel.toggle(app.packageName) }
-                    )
+            if (state.loading) {
+                Text(text = "Loading apps...", color = AppColors.TextMuted)
+            } else {
+                LazyColumn(
+                    modifier = Modifier.weight(1f),
+                    verticalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    items(state.apps, key = { it.packageName }) { app ->
+                        val dueMs = state.pendingRemovals[app.packageName]
+                        val pendingText = dueMs?.let {
+                            "Unblocks in ${formatWait(it - state.trustedNowMs)}"
+                        }
+                        AppRow(
+                            label = app.label,
+                            packageName = app.packageName,
+                            blocked = app.packageName in state.blocked,
+                            pendingText = pendingText,
+                            onToggle = { viewModel.toggle(app.packageName) }
+                        )
+                    }
                 }
             }
         }
@@ -131,77 +149,103 @@ private fun StatusCard(
     onOpenAccessibility: () -> Unit,
     onOpenAppInfo: () -> Unit
 ) {
+    val active = state.serviceEnabled && state.serviceConnected
+    val title: String
+    val color: Color
+    when {
+        active -> {
+            title = "Blocking is active"
+            color = AppColors.Good
+        }
+        state.serviceEnabled -> {
+            title = "Enabled, but not running"
+            color = AppColors.Warn
+        }
+        else -> {
+            title = "Blocking is off"
+            color = AppColors.Bad
+        }
+    }
+
     Column(
         modifier = Modifier
             .fillMaxWidth()
-            .background(CardBackground, RoundedCornerShape(12.dp))
-            .padding(12.dp)
+            .surfaceCard(shape = RoundedCornerShape(22.dp))
+            .padding(16.dp)
     ) {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Box(
+                modifier = Modifier
+                    .size(10.dp)
+                    .clip(CircleShape)
+                    .background(color)
+            )
+            Spacer(modifier = Modifier.width(10.dp))
+            Text(
+                text = title,
+                color = color,
+                fontSize = 17.sp,
+                fontWeight = FontWeight.Bold
+            )
+        }
+
+        Spacer(modifier = Modifier.height(6.dp))
+
         when {
-            state.serviceEnabled && state.serviceConnected -> {
+            active -> {
                 Text(
-                    text = "Blocking is ACTIVE",
-                    color = Color(0xFF10B981),
-                    fontSize = 16.sp,
-                    fontWeight = androidx.compose.ui.text.font.FontWeight.Bold
+                    text = "RepLock checks which app is in front and sends you Home when your earned time runs out.",
+                    color = AppColors.TextMuted,
+                    fontSize = 12.sp
                 )
             }
+
             state.serviceEnabled -> {
                 Text(
-                    text = "Enabled, but the service is not running",
-                    color = Color(0xFFF59E0B),
-                    fontSize = 16.sp,
-                    fontWeight = androidx.compose.ui.text.font.FontWeight.Bold
-                )
-                Text(
                     text = "MIUI may have stopped it. Check Autostart and battery settings below, then reopen RepLock.",
-                    color = MutedText,
+                    color = AppColors.TextMuted,
                     fontSize = 12.sp
                 )
             }
+
             else -> {
                 Text(
-                    text = "Blocking is OFF",
-                    color = Color(0xFFEF4444),
-                    fontSize = 16.sp,
-                    fontWeight = androidx.compose.ui.text.font.FontWeight.Bold
-                )
-                Text(
                     text = "1. Open App info, tap the menu (three dots) and choose Allow restricted settings, if it is shown (Android 13).\n2. Open Accessibility settings, find RepLock and turn it on.",
-                    color = MutedText,
+                    color = AppColors.TextMuted,
                     fontSize = 12.sp
                 )
+                Spacer(modifier = Modifier.height(12.dp))
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    AppChip(text = "App info", onClick = onOpenAppInfo)
+                    AppChip(
+                        text = "Accessibility settings",
+                        background = AppColors.Indigo,
+                        textColor = Color.White,
+                        onClick = onOpenAccessibility
+                    )
+                }
             }
         }
 
-        Spacer(modifier = Modifier.height(8.dp))
-
-        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            Button(
-                onClick = onOpenAppInfo,
-                colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF374151)),
-                shape = RoundedCornerShape(8.dp)
-            ) {
-                Text(text = "App info", color = Color.White, fontSize = 12.sp)
-            }
-            Button(
-                onClick = onOpenAccessibility,
-                colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF2563EB)),
-                shape = RoundedCornerShape(8.dp)
-            ) {
-                Text(text = "Accessibility settings", color = Color.White, fontSize = 12.sp)
-            }
+        if (!active) {
+            Spacer(modifier = Modifier.height(10.dp))
+            Text(
+                text = "Xiaomi/MIUI: turn on Autostart for RepLock, set Battery saver to No restrictions, and lock RepLock in the Recents screen so MIUI does not stop it.",
+                color = AppColors.TextMuted,
+                fontSize = 11.sp
+            )
         }
-
-        Spacer(modifier = Modifier.height(8.dp))
-
-        Text(
-            text = "Xiaomi/MIUI: turn on Autostart for RepLock, set Battery saver to No restrictions, and lock RepLock in the Recents screen so MIUI does not kill it.",
-            color = MutedText,
-            fontSize = 11.sp
-        )
     }
 }
+
+private val AvatarColors = listOf(
+    Color(0xFF6366F1),
+    Color(0xFF22D3EE),
+    Color(0xFFF472B6),
+    Color(0xFFFBBF24),
+    Color(0xFF34D399),
+    Color(0xFFA78BFA)
+)
 
 @Composable
 private fun AppRow(
@@ -211,30 +255,67 @@ private fun AppRow(
     pendingText: String?,
     onToggle: () -> Unit
 ) {
+    val avatarColor = AvatarColors[abs(packageName.hashCode() % AvatarColors.size)]
+
     Row(
         modifier = Modifier
             .fillMaxWidth()
+            .surfaceCard(shape = RoundedCornerShape(16.dp))
             .clickable(onClick = onToggle)
-            .padding(vertical = 6.dp),
+            .padding(horizontal = 12.dp, vertical = 10.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
-        Checkbox(
-            checked = blocked,
-            onCheckedChange = { onToggle() },
-            colors = CheckboxDefaults.colors(
-                checkedColor = Color(0xFF2563EB),
-                uncheckedColor = MutedText,
-                checkmarkColor = Color.White
+        Box(
+            modifier = Modifier
+                .size(42.dp)
+                .clip(CircleShape)
+                .background(avatarColor.copy(alpha = 0.22f)),
+            contentAlignment = Alignment.Center
+        ) {
+            Text(
+                text = label.firstOrNull()?.uppercase() ?: "?",
+                color = avatarColor,
+                fontSize = 18.sp,
+                fontWeight = FontWeight.Bold
             )
-        )
-        Spacer(modifier = Modifier.width(8.dp))
-        Column {
-            Text(text = label, color = Color.White, fontSize = 16.sp)
-            Text(text = packageName, color = MutedText, fontSize = 11.sp)
+        }
+
+        Spacer(modifier = Modifier.width(12.dp))
+
+        Column(modifier = Modifier.weight(1f)) {
+            Text(
+                text = label,
+                color = AppColors.TextPrimary,
+                fontSize = 16.sp,
+                fontWeight = FontWeight.SemiBold,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis
+            )
+            Text(
+                text = packageName,
+                color = AppColors.TextMuted,
+                fontSize = 11.sp,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis
+            )
             if (pendingText != null) {
-                Text(text = pendingText, color = Color(0xFFF59E0B), fontSize = 12.sp)
+                Text(text = pendingText, color = AppColors.Warn, fontSize = 12.sp)
             }
         }
+
+        Spacer(modifier = Modifier.width(8.dp))
+
+        Switch(
+            checked = blocked,
+            onCheckedChange = { onToggle() },
+            colors = SwitchDefaults.colors(
+                checkedThumbColor = Color.White,
+                checkedTrackColor = AppColors.Indigo,
+                uncheckedThumbColor = AppColors.TextMuted,
+                uncheckedTrackColor = AppColors.SurfaceHigh,
+                uncheckedBorderColor = AppColors.Outline
+            )
+        )
     }
 }
 

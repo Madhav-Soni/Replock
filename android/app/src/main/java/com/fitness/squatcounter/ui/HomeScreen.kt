@@ -1,6 +1,7 @@
 package com.fitness.squatcounter.ui
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -10,11 +11,14 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Text
@@ -22,185 +26,269 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.fitness.squatcounter.data.CreditConfig
 import com.fitness.squatcounter.domain.ExerciseType
+import com.fitness.squatcounter.ui.theme.AppBackground
+import com.fitness.squatcounter.ui.theme.AppChip
+import com.fitness.squatcounter.ui.theme.AppColors
+import com.fitness.squatcounter.ui.theme.ProgressRing
+import com.fitness.squatcounter.ui.theme.accent
+import com.fitness.squatcounter.ui.theme.emoji
+import com.fitness.squatcounter.ui.theme.formatDuration
+import com.fitness.squatcounter.ui.theme.surfaceCard
 
-private val HomeBg = Color(0xFF0B1220)
-private val CardBg = Color(0xFF111827)
-private val Accent = Color(0xFF2563EB)
-private val Good = Color(0xFF10B981)
-private val Warn = Color(0xFFF59E0B)
-private val SoftText = Color(0xFF9CA3AF)
-private val Neutral = Color(0xFF374151)
+/** The ring on the home screen fills up to this many seconds of available screen time. */
+private const val RING_FULL_SECONDS = 1800
 
 /**
- * The first screen: pick an exercise from the list, or open the blocker settings.
+ * The first screen: your screen-time balance, the exercise list, and the app blocker.
  */
 @Composable
 fun HomeScreen(
     balanceSeconds: Int,
+    blockerActive: Boolean,
     onSelectExercise: (ExerciseType) -> Unit,
     onOpenBlocker: () -> Unit,
     modifier: Modifier = Modifier
 ) {
-    Column(
-        modifier = modifier
-            .fillMaxSize()
-            .background(HomeBg)
-            .statusBarsPadding()
-            .navigationBarsPadding()
-            .padding(16.dp)
-    ) {
-        Text(
-            text = "RepLock",
-            color = Color.White,
-            fontSize = 30.sp,
-            fontWeight = FontWeight.Black
-        )
-        Text(
-            text = "Earn your screen time with real exercise.",
-            color = SoftText,
-            fontSize = 14.sp
-        )
-
-        Spacer(modifier = Modifier.height(16.dp))
-
-        BalanceCard(balanceSeconds)
-
-        Spacer(modifier = Modifier.height(20.dp))
-
-        Text(
-            text = "Choose an exercise",
-            color = Color.White,
-            fontSize = 18.sp,
-            fontWeight = FontWeight.SemiBold
-        )
-
-        Spacer(modifier = Modifier.height(10.dp))
-
+    AppBackground(modifier = modifier) {
         Column(
             modifier = Modifier
-                .weight(1f)
-                .verticalScroll(rememberScrollState()),
-            verticalArrangement = Arrangement.spacedBy(12.dp)
-        ) {
-            for (type in ExerciseType.values()) {
-                ExerciseCard(type = type, onClick = { onSelectExercise(type) })
-            }
-        }
-
-        Spacer(modifier = Modifier.height(12.dp))
-
-        Box(
-            modifier = Modifier
-                .fillMaxWidth()
-                .clip(RoundedCornerShape(16.dp))
-                .background(Neutral)
-                .clickable(onClick = onOpenBlocker)
-                .padding(vertical = 16.dp),
-            contentAlignment = Alignment.Center
+                .fillMaxSize()
+                .statusBarsPadding()
+                .navigationBarsPadding()
+                .verticalScroll(rememberScrollState())
+                .padding(horizontal = 18.dp, vertical = 16.dp)
         ) {
             Text(
-                text = "Blocker: choose which apps to lock",
-                color = Color.White,
-                fontSize = 16.sp,
-                fontWeight = FontWeight.SemiBold
+                text = "RepLock",
+                color = AppColors.TextPrimary,
+                fontSize = 32.sp,
+                fontWeight = FontWeight.Black
             )
-        }
-    }
-}
-
-@Composable
-private fun BalanceCard(balanceSeconds: Int) {
-    Column(
-        modifier = Modifier
-            .fillMaxWidth()
-            .clip(RoundedCornerShape(16.dp))
-            .background(CardBg)
-            .padding(16.dp)
-    ) {
-        Text(text = "Screen time available", color = SoftText, fontSize = 13.sp)
-        Text(
-            text = formatDuration(balanceSeconds),
-            color = if (balanceSeconds > 0) Good else Warn,
-            fontSize = 36.sp,
-            fontWeight = FontWeight.Black
-        )
-        if (balanceSeconds <= 0) {
             Text(
-                text = "Do an exercise to earn time for your locked apps.",
-                color = SoftText,
-                fontSize = 12.sp
+                text = "Earn your screen time with real reps.",
+                color = AppColors.TextMuted,
+                fontSize = 14.sp
             )
-        }
-    }
-}
 
-@Composable
-private fun ExerciseCard(type: ExerciseType, onClick: () -> Unit) {
-    Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .clip(RoundedCornerShape(16.dp))
-            .background(CardBg)
-            .clickable(onClick = onClick)
-            .padding(16.dp),
-        verticalAlignment = Alignment.CenterVertically
-    ) {
-        Column(modifier = Modifier.weight(1f)) {
+            Spacer(modifier = Modifier.height(20.dp))
+
+            HeroCard(balanceSeconds)
+
+            Spacer(modifier = Modifier.height(26.dp))
+
             Text(
-                text = type.label,
-                color = Color.White,
+                text = "Workouts",
+                color = AppColors.TextPrimary,
                 fontSize = 20.sp,
                 fontWeight = FontWeight.Bold
             )
-            Spacer(modifier = Modifier.height(2.dp))
-            Text(text = descriptionOf(type), color = SoftText, fontSize = 13.sp)
-            Spacer(modifier = Modifier.height(6.dp))
+            Spacer(modifier = Modifier.height(12.dp))
+
+            for (row in ExerciseType.values().toList().chunked(2)) {
+                Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                    for (type in row) {
+                        ExerciseTile(
+                            type = type,
+                            modifier = Modifier.weight(1f),
+                            onClick = { onSelectExercise(type) }
+                        )
+                    }
+                    if (row.size == 1) {
+                        Spacer(modifier = Modifier.weight(1f))
+                    }
+                }
+                Spacer(modifier = Modifier.height(12.dp))
+            }
+
+            Spacer(modifier = Modifier.height(8.dp))
+
+            BlockerCard(active = blockerActive, onClick = onOpenBlocker)
+
+            Spacer(modifier = Modifier.height(16.dp))
+
             Text(
-                text = rewardOf(type),
-                color = Good,
+                text = "\uD83D\uDD12  Everything runs on this phone. No video is saved or sent anywhere.",
+                color = AppColors.TextMuted,
+                fontSize = 12.sp,
+                modifier = Modifier.fillMaxWidth()
+            )
+        }
+    }
+}
+
+@Composable
+private fun HeroCard(balanceSeconds: Int) {
+    val shape = RoundedCornerShape(28.dp)
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(shape)
+            .background(
+                Brush.linearGradient(listOf(Color(0xFF1E1B4B), Color(0xFF0C4A6E)))
+            )
+            .border(1.dp, AppColors.Outline, shape)
+            .padding(20.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        val bigNumber = if (balanceSeconds >= 60) "${balanceSeconds / 60}" else "$balanceSeconds"
+        val unit = if (balanceSeconds >= 60) "min" else "sec"
+
+        ProgressRing(
+            progress = balanceSeconds / RING_FULL_SECONDS.toFloat(),
+            diameter = 108.dp,
+            stroke = 11.dp
+        ) {
+            Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                Text(
+                    text = bigNumber,
+                    color = AppColors.TextPrimary,
+                    fontSize = 30.sp,
+                    fontWeight = FontWeight.Black
+                )
+                Text(text = unit, color = AppColors.TextMuted, fontSize = 12.sp)
+            }
+        }
+
+        Spacer(modifier = Modifier.width(18.dp))
+
+        Column {
+            Text(text = "Screen time available", color = AppColors.TextMuted, fontSize = 13.sp)
+            Text(
+                text = formatDuration(balanceSeconds),
+                color = AppColors.TextPrimary,
+                fontSize = 28.sp,
+                fontWeight = FontWeight.Black
+            )
+            Spacer(modifier = Modifier.height(4.dp))
+            Text(
+                text = if (balanceSeconds > 0) {
+                    "Ready for your locked apps"
+                } else {
+                    "Do a workout to earn time"
+                },
+                color = if (balanceSeconds > 0) AppColors.Good else AppColors.Warn,
                 fontSize = 13.sp,
                 fontWeight = FontWeight.SemiBold
             )
         }
-        Spacer(modifier = Modifier.width(12.dp))
-        Text(text = "\u203A", color = Accent, fontSize = 32.sp, fontWeight = FontWeight.Bold)
     }
 }
 
-private fun descriptionOf(type: ExerciseType): String = when (type) {
-    ExerciseType.SQUATS ->
-        "Front camera. Keep your shoulders and hips in view. Showing your whole body is the most accurate."
-    ExerciseType.PUSHUPS ->
-        "Phone on the floor in front of you. Keep your head, shoulders and hands in view."
-    ExerciseType.PLANK ->
-        "Phone on the floor in front of you. Hold still in your plank. Every 5 seconds counts."
-    ExerciseType.LUNGES ->
-        "Front camera, a few steps back. Keep your shoulders, hips and knees in view. One knee must drop lower than the other."
-    ExerciseType.JUMPING_JACKS ->
-        "Front camera, far enough back for your whole body. Hands overhead and feet wide, then back to closed."
+@Composable
+private fun ExerciseTile(
+    type: ExerciseType,
+    modifier: Modifier = Modifier,
+    onClick: () -> Unit
+) {
+    val accent = type.accent()
+    Column(
+        modifier = modifier
+            .surfaceCard(shape = RoundedCornerShape(22.dp))
+            .clickable(onClick = onClick)
+            .heightIn(min = 150.dp)
+            .padding(16.dp)
+    ) {
+        Box(
+            modifier = Modifier
+                .size(48.dp)
+                .clip(CircleShape)
+                .background(accent.copy(alpha = 0.18f)),
+            contentAlignment = Alignment.Center
+        ) {
+            Text(text = type.emoji(), fontSize = 24.sp)
+        }
+
+        Spacer(modifier = Modifier.height(12.dp))
+
+        Text(
+            text = type.label,
+            color = AppColors.TextPrimary,
+            fontSize = 18.sp,
+            fontWeight = FontWeight.Bold
+        )
+        Text(text = taglineOf(type), color = AppColors.TextMuted, fontSize = 12.sp)
+
+        Spacer(modifier = Modifier.height(8.dp))
+
+        Text(
+            text = rewardOf(type),
+            color = accent,
+            fontSize = 13.sp,
+            fontWeight = FontWeight.SemiBold
+        )
+    }
+}
+
+@Composable
+private fun BlockerCard(active: Boolean, onClick: () -> Unit) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .surfaceCard(shape = RoundedCornerShape(22.dp))
+            .clickable(onClick = onClick)
+            .padding(16.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Box(
+            modifier = Modifier
+                .size(48.dp)
+                .clip(CircleShape)
+                .background(AppColors.Indigo.copy(alpha = 0.20f)),
+            contentAlignment = Alignment.Center
+        ) {
+            Text(text = "\uD83D\uDD12", fontSize = 22.sp)
+        }
+
+        Spacer(modifier = Modifier.width(14.dp))
+
+        Column(modifier = Modifier.weight(1f)) {
+            Text(
+                text = "App blocker",
+                color = AppColors.TextPrimary,
+                fontSize = 17.sp,
+                fontWeight = FontWeight.Bold
+            )
+            Text(
+                text = "Lock distracting apps until you earn time",
+                color = AppColors.TextMuted,
+                fontSize = 12.sp
+            )
+        }
+
+        Spacer(modifier = Modifier.width(10.dp))
+
+        AppChip(
+            text = if (active) "Active" else "Off",
+            background = if (active) {
+                AppColors.Good.copy(alpha = 0.18f)
+            } else {
+                AppColors.Warn.copy(alpha = 0.18f)
+            },
+            textColor = if (active) AppColors.Good else AppColors.Warn
+        )
+    }
+}
+
+private fun taglineOf(type: ExerciseType): String = when (type) {
+    ExerciseType.SQUATS -> "Legs and core"
+    ExerciseType.PUSHUPS -> "Chest and arms"
+    ExerciseType.PLANK -> "Hold steady"
+    ExerciseType.LUNGES -> "One leg at a time"
+    ExerciseType.JUMPING_JACKS -> "Full-body cardio"
 }
 
 private fun rewardOf(type: ExerciseType): String {
     val reward = CreditConfig().rewardFor(type.creditKey) ?: return ""
     val amount = formatDuration(reward.secondsPerRep)
     return when (type) {
-        ExerciseType.PLANK -> "Earns $amount per 5 seconds held"
-        else -> "Earns $amount per rep"
-    }
-}
-
-private fun formatDuration(totalSeconds: Int): String {
-    val minutes = totalSeconds / 60
-    val seconds = totalSeconds % 60
-    return when {
-        minutes > 0 && seconds > 0 -> "${minutes}m ${seconds}s"
-        minutes > 0 -> "${minutes}m"
-        else -> "${seconds}s"
+        ExerciseType.PLANK -> "+$amount per 5 s held"
+        else -> "+$amount per rep"
     }
 }

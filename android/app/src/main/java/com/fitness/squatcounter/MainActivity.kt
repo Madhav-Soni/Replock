@@ -15,8 +15,8 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.lifecycleScope
 import androidx.lifecycle.repeatOnLifecycle
-import com.fitness.squatcounter.blocker.BlockerViewModel
 import com.fitness.squatcounter.blocker.BlockerScreen
+import com.fitness.squatcounter.blocker.BlockerViewModel
 import com.fitness.squatcounter.ui.HomeScreen
 import com.fitness.squatcounter.ui.SquatScreen
 import com.fitness.squatcounter.ui.SquatViewModel
@@ -69,10 +69,12 @@ class MainActivity : ComponentActivity() {
         setContent {
             var screenName by rememberSaveable { mutableStateOf(AppScreen.HOME.name) }
             val uiState by viewModel.uiState.collectAsState()
+            val blockerState by blockerViewModel.uiState.collectAsState()
 
             when (AppScreen.valueOf(screenName)) {
                 AppScreen.HOME -> HomeScreen(
                     balanceSeconds = uiState.creditBalanceSeconds,
+                    blockerActive = blockerState.serviceEnabled && blockerState.serviceConnected,
                     onSelectExercise = { type ->
                         viewModel.selectExercise(type)
                         // Start from a clean slate: no leftover summary from an earlier session.

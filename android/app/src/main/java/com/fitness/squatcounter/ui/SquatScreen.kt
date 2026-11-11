@@ -6,7 +6,7 @@ import androidx.activity.compose.BackHandler
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
-import androidx.compose.foundation.clickable
+import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxScope
@@ -18,11 +18,11 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material3.Button
-import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -35,8 +35,11 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.Shadow
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
@@ -51,16 +54,21 @@ import com.fitness.squatcounter.session.SessionPhase
 import com.fitness.squatcounter.session.SetupProblem
 import com.fitness.squatcounter.ui.components.CameraPreview
 import com.fitness.squatcounter.ui.components.SkeletonOverlay
+import com.fitness.squatcounter.ui.theme.AppBackground
+import com.fitness.squatcounter.ui.theme.AppChip
+import com.fitness.squatcounter.ui.theme.AppColors
+import com.fitness.squatcounter.ui.theme.AppPill
+import com.fitness.squatcounter.ui.theme.CircleIconButton
+import com.fitness.squatcounter.ui.theme.GradientButton
+import com.fitness.squatcounter.ui.theme.SoftButton
+import com.fitness.squatcounter.ui.theme.accent
+import com.fitness.squatcounter.ui.theme.emoji
+import com.fitness.squatcounter.ui.theme.formatDuration
+import com.fitness.squatcounter.ui.theme.surfaceCard
 
-private val ScreenBg = Color(0xFF0B1220)
-private val PanelBg = Color(0xFF111827)
-private val Blue = Color(0xFF2563EB)
-private val Green = Color(0xFF10B981)
-private val Red = Color(0xFFDC2626)
-private val Amber = Color(0xFFF59E0B)
-private val Slate = Color(0xFF374151)
-private val Muted = Color(0xFF9CA3AF)
-
+/**
+ * The workout screen: camera in the middle, controls above and below it.
+ */
 @Composable
 fun SquatScreen(
     viewModel: SquatViewModel,
@@ -99,45 +107,18 @@ fun SquatScreen(
     }
 
     if (!hasCameraPermission) {
-        Box(
-            modifier = modifier
-                .fillMaxSize()
-                .background(ScreenBg)
-                .padding(24.dp),
-            contentAlignment = Alignment.Center
-        ) {
-            Column(
-                horizontalAlignment = Alignment.CenterHorizontally,
-                verticalArrangement = Arrangement.Center
-            ) {
-                Text(
-                    text = "Camera permission needed",
-                    color = Color.White,
-                    fontSize = 22.sp,
-                    fontWeight = FontWeight.Bold
-                )
-                Spacer(modifier = Modifier.height(12.dp))
-                Text(
-                    text = "RepLock watches your workout live on this phone. Nothing is recorded, saved or sent anywhere.",
-                    color = Muted,
-                    fontSize = 14.sp,
-                    textAlign = TextAlign.Center
-                )
-                Spacer(modifier = Modifier.height(24.dp))
-                Button(
-                    onClick = { permissionLauncher.launch(Manifest.permission.CAMERA) },
-                    colors = ButtonDefaults.buttonColors(containerColor = Blue),
-                    shape = RoundedCornerShape(12.dp)
-                ) {
-                    Text("Allow camera", color = Color.White)
-                }
-            }
-        }
-    } else {
+        PermissionScreen(
+            modifier = modifier,
+            onAllow = { permissionLauncher.launch(Manifest.permission.CAMERA) },
+            onBack = onBack
+        )
+        return
+    }
+
+    AppBackground(modifier = modifier) {
         Column(
-            modifier = modifier
+            modifier = Modifier
                 .fillMaxSize()
-                .background(ScreenBg)
                 .statusBarsPadding()
                 .navigationBarsPadding()
         ) {
@@ -148,12 +129,16 @@ fun SquatScreen(
                 onBack = onBack
             )
 
-            // The camera image is letterboxed inside this area; controls live outside it.
+            // The camera image is letterboxed inside this card; controls live outside it.
+            val cameraShape = RoundedCornerShape(26.dp)
             Box(
                 modifier = Modifier
                     .weight(1f)
                     .fillMaxWidth()
+                    .padding(horizontal = 12.dp, vertical = 4.dp)
+                    .clip(cameraShape)
                     .background(Color.Black)
+                    .border(1.dp, AppColors.Outline, cameraShape)
             ) {
                 CameraPreview(
                     useFrontCamera = true, // front camera only while we test the exercises
@@ -180,11 +165,64 @@ fun SquatScreen(
                 }
             }
 
+            Spacer(modifier = Modifier.height(10.dp))
+
             BottomPanel(
                 uiState = uiState,
                 onStart = { viewModel.startSession() },
                 onStop = { viewModel.stopSession() }
             )
+        }
+    }
+}
+
+@Composable
+private fun PermissionScreen(
+    modifier: Modifier,
+    onAllow: () -> Unit,
+    onBack: () -> Unit
+) {
+    AppBackground(modifier = modifier) {
+        Column(
+            modifier = Modifier
+                .fillMaxSize()
+                .statusBarsPadding()
+                .navigationBarsPadding()
+                .padding(24.dp),
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.Center
+        ) {
+            Box(
+                modifier = Modifier
+                    .size(84.dp)
+                    .clip(CircleShape)
+                    .background(AppColors.Indigo.copy(alpha = 0.20f)),
+                contentAlignment = Alignment.Center
+            ) {
+                Text(text = "\uD83D\uDCF7", fontSize = 38.sp)
+            }
+
+            Spacer(modifier = Modifier.height(20.dp))
+
+            Text(
+                text = "Camera access needed",
+                color = AppColors.TextPrimary,
+                fontSize = 22.sp,
+                fontWeight = FontWeight.Bold
+            )
+            Spacer(modifier = Modifier.height(10.dp))
+            Text(
+                text = "RepLock watches your workout live on this phone. Nothing is recorded, saved or sent anywhere.",
+                color = AppColors.TextMuted,
+                fontSize = 14.sp,
+                textAlign = TextAlign.Center
+            )
+
+            Spacer(modifier = Modifier.height(28.dp))
+
+            GradientButton(text = "ALLOW CAMERA", onClick = onAllow)
+            Spacer(modifier = Modifier.height(10.dp))
+            SoftButton(text = "Back", onClick = onBack)
         }
     }
 }
@@ -204,34 +242,28 @@ private fun TopBar(
     ) {
         // Leaving is only offered between sessions. During one, use STOP first.
         if (!uiState.sessionPhase.isLive) {
-            Chip(
-                text = "Back",
-                background = Slate,
-                textColor = Color.White,
-                onClick = onBack
-            )
+            CircleIconButton(text = "\u2039", onClick = onBack)
             Spacer(modifier = Modifier.width(10.dp))
         }
 
         Text(
-            text = uiState.selectedExercise.label,
-            color = Color.White,
-            fontSize = 18.sp,
+            text = uiState.selectedExercise.emoji() + "  " + uiState.selectedExercise.label,
+            color = AppColors.TextPrimary,
+            fontSize = 19.sp,
             fontWeight = FontWeight.Bold
         )
 
         Spacer(modifier = Modifier.weight(1f))
 
-        Chip(
-            text = "Time  " + formatSeconds(uiState.creditBalanceSeconds),
-            background = Color(0xFF064E3B),
-            textColor = Green
+        AppChip(
+            text = "\u23F1 " + formatDuration(uiState.creditBalanceSeconds),
+            background = AppColors.Good.copy(alpha = 0.16f),
+            textColor = AppColors.Good
         )
         Spacer(modifier = Modifier.width(6.dp))
-        Chip(
+        AppChip(
             text = "Debug",
-            background = if (showDebug) Blue else Slate,
-            textColor = Color.White,
+            background = if (showDebug) AppColors.Indigo else AppColors.SurfaceHigh,
             onClick = onToggleDebug
         )
     }
@@ -245,28 +277,29 @@ private fun BoxScope.CameraMessages(uiState: SquatUiState) {
                 text = "${uiState.countdownSecondsLeft}",
                 modifier = Modifier.align(Alignment.Center),
                 color = Color.White,
-                fontSize = 140.sp,
-                fontWeight = FontWeight.Black
+                fontSize = 150.sp,
+                fontWeight = FontWeight.Black,
+                style = TextStyle(shadow = Shadow(Color.Black, Offset(0f, 6f), 16f))
             )
         }
 
         SessionPhase.SETUP_CHECK -> {
-            Pill(
+            AppPill(
                 text = setupText(uiState.setupProblem, uiState.selectedExercise),
-                color = if (uiState.setupProblem == SetupProblem.NONE) Blue else Amber,
+                color = if (uiState.setupProblem == SetupProblem.NONE) AppColors.Indigo else AppColors.Warn,
                 modifier = Modifier
                     .align(Alignment.TopCenter)
-                    .padding(top = 12.dp)
+                    .padding(top = 14.dp)
             )
         }
 
         SessionPhase.PAUSED -> {
-            Pill(
+            AppPill(
                 text = pausedText(uiState),
-                color = Red,
+                color = AppColors.Bad,
                 modifier = Modifier
                     .align(Alignment.TopCenter)
-                    .padding(top = 12.dp)
+                    .padding(top = 14.dp)
             )
         }
 
@@ -280,11 +313,16 @@ private fun BottomPanel(
     onStart: () -> Unit,
     onStop: () -> Unit
 ) {
+    val panelShape = RoundedCornerShape(topStart = 30.dp, topEnd = 30.dp)
+    val accent = uiState.selectedExercise.accent()
+
     Column(
         modifier = Modifier
             .fillMaxWidth()
-            .background(PanelBg, RoundedCornerShape(topStart = 24.dp, topEnd = 24.dp))
-            .padding(horizontal = 20.dp, vertical = 16.dp),
+            .clip(panelShape)
+            .background(AppColors.Surface)
+            .border(1.dp, AppColors.Outline, panelShape)
+            .padding(horizontal = 20.dp, vertical = 18.dp),
         horizontalAlignment = Alignment.CenterHorizontally
     ) {
         when (uiState.sessionPhase) {
@@ -292,30 +330,40 @@ private fun BottomPanel(
                 if (uiState.sessionPhase == SessionPhase.ENDED) {
                     Text(
                         text = endText(uiState.sessionEndReason),
-                        color = Color.White,
-                        fontSize = 16.sp,
-                        fontWeight = FontWeight.SemiBold
+                        color = AppColors.TextPrimary,
+                        fontSize = 17.sp,
+                        fontWeight = FontWeight.Bold
                     )
-                    Text(
-                        text = "${uiState.repCount} ${uiState.countLabel.lowercase()}   +${formatSeconds(uiState.sessionEarnedSeconds)} earned",
-                        color = Green,
-                        fontSize = 14.sp
-                    )
-                    Spacer(modifier = Modifier.height(12.dp))
+                    Spacer(modifier = Modifier.height(10.dp))
+                    Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                        StatTile(
+                            value = "${uiState.repCount}",
+                            label = uiState.countLabel.lowercase(),
+                            color = accent,
+                            modifier = Modifier.weight(1f)
+                        )
+                        StatTile(
+                            value = "+" + formatDuration(uiState.sessionEarnedSeconds),
+                            label = "earned",
+                            color = AppColors.Good,
+                            modifier = Modifier.weight(1f)
+                        )
+                    }
+                    Spacer(modifier = Modifier.height(14.dp))
                 }
-                BigButton(
+
+                GradientButton(
                     text = if (uiState.sessionPhase == SessionPhase.ENDED) {
                         "START NEW SESSION"
                     } else {
                         "START " + uiState.selectedExercise.label.uppercase()
                     },
-                    color = Blue,
                     onClick = onStart
                 )
-                Spacer(modifier = Modifier.height(8.dp))
+                Spacer(modifier = Modifier.height(10.dp))
                 Text(
                     text = hintText(uiState.selectedExercise),
-                    color = Muted,
+                    color = AppColors.TextMuted,
                     fontSize = 12.sp,
                     textAlign = TextAlign.Center
                 )
@@ -324,58 +372,100 @@ private fun BottomPanel(
             SessionPhase.SETUP_CHECK, SessionPhase.COUNTDOWN -> {
                 Text(
                     text = if (uiState.sessionPhase == SessionPhase.COUNTDOWN) "Get ready" else "Setting up",
-                    color = Color.White,
-                    fontSize = 18.sp,
-                    fontWeight = FontWeight.SemiBold
+                    color = AppColors.TextPrimary,
+                    fontSize = 20.sp,
+                    fontWeight = FontWeight.Bold
                 )
-                Spacer(modifier = Modifier.height(12.dp))
-                BigButton(text = "CANCEL", color = Slate, onClick = onStop)
+                Spacer(modifier = Modifier.height(14.dp))
+                SoftButton(text = "CANCEL", onClick = onStop)
             }
 
             SessionPhase.ACTIVE, SessionPhase.PAUSED -> {
-                Text(
-                    text = "${uiState.repCount}",
-                    color = Color.White,
-                    fontSize = 88.sp,
-                    fontWeight = FontWeight.Black
-                )
-                Text(
-                    text = uiState.countLabel,
-                    color = Muted,
-                    fontSize = 12.sp,
-                    fontWeight = FontWeight.Bold
-                )
-                Text(
-                    text = when {
-                        uiState.selectedExercise != ExerciseType.SQUATS -> uiState.selectedExercise.label
-                        uiState.squatMode == SquatMode.CLOSE_UP -> "Close-up mode (shoulders and hips)"
-                        else -> "Full-body mode"
-                    },
-                    color = Muted,
-                    fontSize = 11.sp
-                )
-                Spacer(modifier = Modifier.height(4.dp))
-                Text(
-                    text = "+${formatSeconds(uiState.sessionEarnedSeconds)} earned",
-                    color = Green,
-                    fontSize = 16.sp,
-                    fontWeight = FontWeight.SemiBold
-                )
-                if (uiState.lastRejectionReason != RejectionReason.NONE) {
-                    Text(
-                        text = "Last rep not counted: " +
-                            uiState.lastRejectionReason.name.lowercase().replace('_', ' '),
-                        color = Amber,
-                        fontSize = 12.sp
-                    )
-                    uiState.rejectionDetail?.let { detail ->
-                        Text(text = detail, color = Amber, fontSize = 11.sp)
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Column(modifier = Modifier.weight(1f)) {
+                        Text(
+                            text = "${uiState.repCount}",
+                            color = accent,
+                            fontSize = 84.sp,
+                            fontWeight = FontWeight.Black
+                        )
+                        Text(
+                            text = uiState.countLabel,
+                            color = AppColors.TextMuted,
+                            fontSize = 12.sp,
+                            fontWeight = FontWeight.Bold,
+                            letterSpacing = 1.sp
+                        )
+                    }
+                    Column(horizontalAlignment = Alignment.End) {
+                        AppChip(
+                            text = "+" + formatDuration(uiState.sessionEarnedSeconds) + " earned",
+                            background = AppColors.Good.copy(alpha = 0.16f),
+                            textColor = AppColors.Good
+                        )
+                        Spacer(modifier = Modifier.height(6.dp))
+                        Text(
+                            text = when {
+                                uiState.selectedExercise != ExerciseType.SQUATS -> uiState.selectedExercise.label
+                                uiState.squatMode == SquatMode.CLOSE_UP -> "Close-up mode"
+                                else -> "Full-body mode"
+                            },
+                            color = AppColors.TextMuted,
+                            fontSize = 12.sp
+                        )
                     }
                 }
-                Spacer(modifier = Modifier.height(12.dp))
-                BigButton(text = "STOP", color = Red, onClick = onStop)
+
+                if (uiState.lastRejectionReason != RejectionReason.NONE) {
+                    Spacer(modifier = Modifier.height(8.dp))
+                    Column(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .surfaceCard(
+                                shape = RoundedCornerShape(14.dp),
+                                color = AppColors.Warn.copy(alpha = 0.12f)
+                            )
+                            .padding(horizontal = 12.dp, vertical = 8.dp)
+                    ) {
+                        Text(
+                            text = "Last rep not counted: " +
+                                uiState.lastRejectionReason.name.lowercase().replace('_', ' '),
+                            color = AppColors.Warn,
+                            fontSize = 13.sp,
+                            fontWeight = FontWeight.SemiBold
+                        )
+                        uiState.rejectionDetail?.let { detail ->
+                            Text(text = detail, color = AppColors.Warn, fontSize = 11.sp)
+                        }
+                    }
+                }
+
+                Spacer(modifier = Modifier.height(14.dp))
+                GradientButton(
+                    text = "STOP",
+                    onClick = onStop,
+                    colors = listOf(AppColors.Bad, AppColors.BadDeep)
+                )
             }
         }
+    }
+}
+
+@Composable
+private fun StatTile(
+    value: String,
+    label: String,
+    color: Color,
+    modifier: Modifier = Modifier
+) {
+    Column(
+        modifier = modifier
+            .surfaceCard(shape = RoundedCornerShape(16.dp), color = AppColors.SurfaceHigh)
+            .padding(vertical = 12.dp),
+        horizontalAlignment = Alignment.CenterHorizontally
+    ) {
+        Text(text = value, color = color, fontSize = 26.sp, fontWeight = FontWeight.Black)
+        Text(text = label, color = AppColors.TextMuted, fontSize = 12.sp)
     }
 }
 
@@ -385,9 +475,12 @@ private fun DebugPanel(
     onReset: () -> Unit,
     modifier: Modifier = Modifier
 ) {
+    val shape = RoundedCornerShape(14.dp)
     Column(
         modifier = modifier
-            .background(Color(0xCC111827), RoundedCornerShape(12.dp))
+            .clip(shape)
+            .background(Color(0xE60B1220))
+            .border(1.dp, AppColors.Outline, shape)
             .padding(10.dp)
     ) {
         val lines = listOf(
@@ -425,65 +518,10 @@ private fun DebugPanel(
             }
         }
         uiState.errorMessage?.let {
-            Text(text = it, color = Amber, fontSize = 11.sp)
+            Text(text = it, color = AppColors.Warn, fontSize = 11.sp)
         }
         Spacer(modifier = Modifier.height(6.dp))
-        Chip(text = "Reset", background = Slate, textColor = Color.White, onClick = onReset)
-    }
-}
-
-@Composable
-private fun Chip(
-    text: String,
-    background: Color,
-    textColor: Color,
-    onClick: (() -> Unit)? = null
-) {
-    val base = Modifier
-        .clip(RoundedCornerShape(20.dp))
-        .background(background)
-    Text(
-        text = text,
-        color = textColor,
-        fontSize = 13.sp,
-        fontWeight = FontWeight.SemiBold,
-        modifier = (if (onClick != null) base.clickable(onClick = onClick) else base)
-            .padding(horizontal = 12.dp, vertical = 8.dp)
-    )
-}
-
-@Composable
-private fun Pill(text: String, color: Color, modifier: Modifier = Modifier) {
-    Text(
-        text = text,
-        color = Color.White,
-        fontSize = 14.sp,
-        fontWeight = FontWeight.SemiBold,
-        textAlign = TextAlign.Center,
-        modifier = modifier
-            .clip(RoundedCornerShape(20.dp))
-            .background(color.copy(alpha = 0.9f))
-            .padding(horizontal = 16.dp, vertical = 8.dp)
-    )
-}
-
-@Composable
-private fun BigButton(text: String, color: Color, onClick: () -> Unit) {
-    Box(
-        modifier = Modifier
-            .fillMaxWidth()
-            .height(56.dp)
-            .clip(RoundedCornerShape(16.dp))
-            .background(color)
-            .clickable(onClick = onClick),
-        contentAlignment = Alignment.Center
-    ) {
-        Text(
-            text = text,
-            color = Color.White,
-            fontSize = 18.sp,
-            fontWeight = FontWeight.Bold
-        )
+        AppChip(text = "Reset", onClick = onReset)
     }
 }
 
@@ -528,10 +566,4 @@ private fun endText(reason: SessionEndReason?): String = when (reason) {
     SessionEndReason.PAUSE_TIMEOUT -> "Ended: paused too long"
     SessionEndReason.INTERRUPTED -> "Session interrupted"
     null -> "Session ended"
-}
-
-private fun formatSeconds(totalSeconds: Int): String {
-    val minutes = totalSeconds / 60
-    val seconds = totalSeconds % 60
-    return if (minutes > 0) "${minutes}m ${seconds}s" else "${seconds}s"
 }
