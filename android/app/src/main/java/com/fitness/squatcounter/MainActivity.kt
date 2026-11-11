@@ -20,6 +20,8 @@ import com.fitness.squatcounter.blocker.BlockerViewModel
 import com.fitness.squatcounter.ui.HomeScreen
 import com.fitness.squatcounter.ui.SquatScreen
 import com.fitness.squatcounter.ui.SquatViewModel
+import com.fitness.squatcounter.updater.AppUpdateManager
+import com.fitness.squatcounter.updater.UpdateDialog
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.launch
@@ -47,8 +49,15 @@ class MainActivity : ComponentActivity() {
         }
     }
 
+    private lateinit var updateManager: AppUpdateManager
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+
+        updateManager = AppUpdateManager(this)
+        lifecycleScope.launch {
+            updateManager.checkForUpdates()
+        }
 
         // Keep the screen on only while a session is live (setup, countdown, active, paused).
         lifecycleScope.launch {
@@ -67,6 +76,7 @@ class MainActivity : ComponentActivity() {
         }
 
         setContent {
+            val updateState by updateManager.updateState.collectAsState()
             var screenName by rememberSaveable { mutableStateOf(AppScreen.HOME.name) }
             val uiState by viewModel.uiState.collectAsState()
             val blockerState by blockerViewModel.uiState.collectAsState()
@@ -94,6 +104,13 @@ class MainActivity : ComponentActivity() {
                     onBack = { screenName = AppScreen.HOME.name }
                 )
             }
+
+            UpdateDialog(
+                updateState = updateState,
+                onUpdateClick = { updateInfo -> updateManager.startDownload(updateInfo) },
+                onDismiss = { updateManager.dismissUpdate() },
+                onInstallAgain = { file -> updateManager.installApk(file) }
+            )
         }
     }
 
