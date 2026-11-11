@@ -271,3 +271,4 @@ class AppLimitsStoreTest {
         assertEquals(0, s.usedToday(app, day1))
     }
 }
+

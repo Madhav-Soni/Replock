@@ -40,3 +40,4 @@ object RewardCalculator {
         return raw.coerceIn(rules.minSecondsPerUnit, rules.maxSecondsPerUnit)
     }
 }
+
