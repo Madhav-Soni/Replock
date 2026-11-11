@@ -1,58 +1,62 @@
 # RepLock — Development Rules & Architecture Guidelines
 
-These guidelines are mandatory for all AI assistants (Claude, Cursor, Copilot, Antigravity) working on this codebase.
+These instructions are mandatory for all AI assistants (Claude, Cursor, Copilot) working on this repository.
 
 ---
 
-## 1. CRITICAL: Test Files Location (`src/test` vs `src/main`)
+## 🚨 RULE 1: NEVER Remove the In-App Updater & Internet Permission
 
-⚠️ **NEVER place unit test files (`*Test.kt`) inside `src/main`!**
+RepLock uses a self-hosted in-app update mechanism via GitHub Releases. **DO NOT REMOVE OR STRIP THESE OUT:**
 
-- **Correct Path**:
-  ```
-  android/app/src/test/java/com/fitness/squatcounter/.../*Test.kt
-  ```
-- **Forbidden Path**:
-  ```
-  android/app/src/main/java/com/fitness/squatcounter/.../*Test.kt
-  ```
+1. **`android/app/src/main/AndroidManifest.xml` MUST retain:**
+   ```xml
+   <uses-permission android:name="android.permission.INTERNET" />
+   <uses-permission android:name="android.permission.REQUEST_INSTALL_PACKAGES" />
+   ```
+   *Do not delete `INTERNET` permission under the assumption of "offline only" — it is strictly required for the app to detect and download app updates.*
+
+2. **`android/app/src/main/java/com/fitness/squatcounter/MainActivity.kt` MUST retain:**
+   - The `updateManager` instance and `updateManager.checkForUpdates()` call in `onCreate()`.
+   - The `UpdateDialog(...)` composable inside `setContent { ... }`.
+
+3. **CI & Version Files MUST NEVER be deleted:**
+   - `.github/workflows/release.yml`
+   - `version.json`
+
+---
+
+## 🚨 RULE 2: NEVER Put Test Files in `src/main`
+
+⚠️ **All test files (`*Test.kt`) MUST strictly be placed in:**
+```
+android/app/src/test/java/com/fitness/squatcounter/.../*Test.kt
+```
+**NEVER put `*Test.kt` inside `android/app/src/main/java/`!**
 
 ### Why:
-`src/main` is compiled into the production APK. Android's production classpath **does not have access to JUnit** (`org.junit.Test`, `assertEquals`, etc.). Putting test files in `src/main` causes `compileDebugKotlin` and GitHub Actions CI to fail with `Unresolved reference: junit`.
-
-All test files must reside strictly in:
-`android/app/src/test/java/`
+`src/main` is compiled into the production Android APK and **does not have access to JUnit** (`org.junit.Test`, `assertEquals`, etc.). Putting test files in `src/main` breaks Gradle compilation with `Unresolved reference: junit`.
 
 ---
 
-## 2. Package Names & Screen Imports
+## 🚨 RULE 3: Keep Enum Values & Cross-File Dependencies Synchronized
 
-`BlockerScreen.kt` is packaged under `com.fitness.squatcounter.blocker`:
-```kotlin
-package com.fitness.squatcounter.blocker
-```
-When importing in `MainActivity.kt` or other UI components:
-```kotlin
-// CORRECT:
-import com.fitness.squatcounter.blocker.BlockerScreen
-
-// INCORRECT:
-import com.fitness.squatcounter.ui.BlockerScreen
-```
+When adding rejection handling or new exercises to detectors (e.g. `WallSitDetector`, `PlankDetector`):
+- Ensure any `RejectionReason.XYZ` referenced is first added to `domain/RejectionReason.kt`.
+- Ensure any `EXERCISE_XYZ` referenced is added to `data/CreditConfig.kt`.
 
 ---
 
-## 3. Releases & Versioning
+## 🚨 RULE 4: How to Release an Update
 
-Whenever new features are added:
-1. Increment `versionCode` and `versionName` in `android/app/build.gradle.kts`.
-2. Update `version.json` in the project root to match:
+Whenever you add a new feature or fix:
+1. Bump `versionCode` and `versionName` in `android/app/build.gradle.kts`.
+2. Update `version.json` in the root directory:
    ```json
    {
-     "versionCode": <new_code>,
-     "versionName": "<new_name>",
+     "versionCode": <incremented_number>,
+     "versionName": "<incremented_version>",
      "downloadUrl": "https://github.com/Madhav-Soni/Replock/releases/download/latest/app-debug.apk",
-     "releaseNotes": "<summary>"
+     "releaseNotes": "<brief summary of changes>"
    }
    ```
-3. Push to `main`. GitHub Actions will automatically build the APK and update the release for in-app updates.
+3. Commit and push to `main`. GitHub Actions will automatically build the APK and publish the release.
