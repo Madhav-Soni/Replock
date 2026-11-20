@@ -1,7 +1,7 @@
 {
-  "versionCode": 5,
-  "versionName": "1.4",
+  "versionCode": 6,
+  "versionName": "1.5",
   "downloadUrl": "https://github.com/Madhav-Soni/Replock/releases/download/latest/app-debug.apk",
-  "releaseNotes": "Added per-app free daily limits and usage tracking"
+  "releaseNotes": "Clean install without REQUEST_INSTALL_PACKAGES for Play Protect compatibility"
 }
 

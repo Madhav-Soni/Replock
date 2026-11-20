@@ -151,74 +151,15 @@ class AppUpdateManager(private val context: Context) {
     }
 
     fun startDownload(updateInfo: AppUpdateInfo) {
-        val downloadManager = context.getSystemService(Context.DOWNLOAD_SERVICE) as? DownloadManager
-        if (downloadManager == null) {
-            _updateState.value = UpdateState.Error("Download Manager unavailable")
-            return
-        }
-
-        _updateState.value = UpdateState.Downloading()
-
-        val fileName = "RepLock-update-${updateInfo.latestVersionCode}.apk"
-        val destinationFile = File(context.getExternalFilesDir(null), fileName)
-        if (destinationFile.exists()) {
-            destinationFile.delete()
-        }
-
-        val request = DownloadManager.Request(Uri.parse(updateInfo.downloadUrl))
-            .setTitle("RepLock Update")
-            .setDescription("Downloading latest version ${updateInfo.latestVersionName}")
-            .setNotificationVisibility(DownloadManager.Request.VISIBILITY_VISIBLE_NOTIFY_COMPLETED)
-            .setDestinationUri(Uri.fromFile(destinationFile))
-            .setAllowedOverMetered(true)
-            .setAllowedOverRoaming(true)
-
-        downloadId = downloadManager.enqueue(request)
-
-        val receiver = object : BroadcastReceiver() {
-            override fun onReceive(recvContext: Context?, intent: Intent?) {
-                val id = intent?.getLongExtra(DownloadManager.EXTRA_DOWNLOAD_ID, -1) ?: -1
-                if (id == downloadId) {
-                    try {
-                        context.unregisterReceiver(this)
-                    } catch (_: Exception) {}
-                    _updateState.value = UpdateState.ReadyToInstall(destinationFile)
-                    installApk(destinationFile)
-                }
-            }
-        }
-
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-            context.registerReceiver(
-                receiver,
-                IntentFilter(DownloadManager.ACTION_DOWNLOAD_COMPLETE),
-                Context.RECEIVER_EXPORTED
-            )
-        } else {
-            context.registerReceiver(
-                receiver,
-                IntentFilter(DownloadManager.ACTION_DOWNLOAD_COMPLETE)
-            )
-        }
-    }
-
-    fun installApk(apkFile: File) {
         try {
-            val contentUri = FileProvider.getUriForFile(
-                context,
-                "${context.packageName}.provider",
-                apkFile
-            )
-
-            val installIntent = Intent(Intent.ACTION_VIEW).apply {
-                setDataAndType(contentUri, "application/vnd.android.package-archive")
-                addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+            val browserIntent = Intent(Intent.ACTION_VIEW, Uri.parse(updateInfo.downloadUrl)).apply {
                 addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
             }
-            context.startActivity(installIntent)
+            context.startActivity(browserIntent)
+            _updateState.value = UpdateState.Idle
         } catch (e: Exception) {
-            Log.e("AppUpdateManager", "Failed to launch installer", e)
-            _updateState.value = UpdateState.Error("Cannot start installer: ${e.localizedMessage}")
+            Log.e("AppUpdateManager", "Failed to open browser download", e)
+            _updateState.value = UpdateState.Error("Cannot open browser: ${e.localizedMessage}")
         }
     }
 

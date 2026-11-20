@@ -108,8 +108,7 @@ class MainActivity : ComponentActivity() {
             UpdateDialog(
                 updateState = updateState,
                 onUpdateClick = { updateInfo -> updateManager.startDownload(updateInfo) },
-                onDismiss = { updateManager.dismissUpdate() },
-                onInstallAgain = { file -> updateManager.installApk(file) }
+                onDismiss = { updateManager.dismissUpdate() }
             )
         }
     }
