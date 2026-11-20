@@ -6,7 +6,11 @@ import androidx.camera.core.ImageProxy
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.fitness.squatcounter.audio.SquatAudioManager
+import com.fitness.squatcounter.data.BaselineConfig
+import com.fitness.squatcounter.data.BaselineStore
 import com.fitness.squatcounter.data.CreditConfig
+import com.fitness.squatcounter.data.RewardCalculator
+import com.fitness.squatcounter.data.SharedPrefsBaselineStorage
 import com.fitness.squatcounter.data.SessionStatus
 import com.fitness.squatcounter.domain.AngleCalculator
 import com.fitness.squatcounter.domain.AngleSmoother
@@ -130,6 +134,18 @@ class SquatViewModel(
         database = com.fitness.squatcounter.data.db.RepLockDatabase.getInstance(context),
         timeProvider = com.fitness.squatcounter.data.AndroidTimeProvider(context)
     )
+
+    // Self-reported max per exercise. Decides how many seconds each verified rep pays.
+    private val baselineStore = BaselineStore(
+        storage = SharedPrefsBaselineStorage(context),
+        lowerCoolingOffMs = BaselineConfig.LOWER_COOLING_OFF_MS
+    )
+
+    // Pay per rep/unit for the running session. Set from the ledger queue, before any rep is written.
+    private var sessionSecondsPerUnit: Int? = null
+
+    // Highest rep (or hold unit) count credited during ACTIVE in this session.
+    private var sessionVerifiedUnits = 0
 
     // All ledger writes go through one queue, so order is guaranteed:
     // start session -> reps -> end session. A rep can never be written after its session ends.
@@ -502,8 +518,17 @@ class SquatViewModel(
                     )
                 }
                 val exerciseKey = selectedExercise.creditKey
+                val isHold = selectedExercise.isHold
+                sessionVerifiedUnits = 0
+                sessionSecondsPerUnit = null
                 enqueueLedgerWrite {
                     creditRepository.startSession(id, exerciseKey)
+                    // Personal rate from the user's own max, using trusted time.
+                    val nowMs = creditRepository.getEffectiveTimeSnapshot().wallClockTimeMs
+                    sessionSecondsPerUnit = RewardCalculator.secondsPerUnit(
+                        isHold = isHold,
+                        baselineMax = baselineStore.maxFor(exerciseKey, nowMs)
+                    )
                 }
             }
 
@@ -515,7 +540,21 @@ class SquatViewModel(
                     } else {
                         SessionStatus.INTERRUPTED
                     }
-                    enqueueLedgerWrite { creditRepository.endSession(id, status) }
+                    // Verified work from this session, in reps (or seconds for a hold).
+                    val exerciseKey = selectedExercise.creditKey
+                    val units = sessionVerifiedUnits
+                    val achieved = if (selectedExercise.isHold) {
+                        detector?.spokenNumber(units) ?: units
+                    } else {
+                        units
+                    }
+                    enqueueLedgerWrite {
+                        creditRepository.endSession(id, status)
+                        if (achieved > 0) {
+                            val nowMs = creditRepository.getEffectiveTimeSnapshot().wallClockTimeMs
+                            baselineStore.raiseFromPerformance(exerciseKey, achieved, nowMs)
+                        }
+                    }
                 }
                 activeSessionId = null
             }
@@ -532,11 +571,13 @@ class SquatViewModel(
                 audioManager.speakRep(detector?.spokenNumber(event.repCount) ?: event.repCount)
                 val repIndex = event.repCount
                 val exerciseKey = selectedExercise.creditKey
+                sessionVerifiedUnits = repIndex
                 enqueueLedgerWrite {
                     val earned = creditRepository.recordValidatedRep(
                         sessionId,
                         repIndex,
-                        exerciseKey
+                        exerciseKey,
+                        sessionSecondsPerUnit
                     )
                     sessionEarnedSeconds += earned
                     _uiState.update { it.copy(sessionEarnedSeconds = sessionEarnedSeconds) }

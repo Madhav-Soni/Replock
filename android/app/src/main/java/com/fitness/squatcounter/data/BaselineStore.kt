@@ -67,6 +67,14 @@ class SharedPrefsBaselineStorage(context: Context) : BaselineStorage {
     }
 }
 
+object BaselineConfig {
+    /**
+     * How long lowering a max takes to apply. 0 = immediate (testing only).
+     * RAISE TO 24 H (86_400_000L) BEFORE REAL USE, or you can under-report to earn more per rep.
+     */
+    const val LOWER_COOLING_OFF_MS = 0L
+}
+
 /** Allowed range for one exercise's max. Units are reps, or seconds for holds. */
 data class BaselineRule(val default: Int, val min: Int, val max: Int)
 
@@ -170,4 +178,3 @@ class BaselineStore(
         return applied
     }
 }
-

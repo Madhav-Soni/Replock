@@ -97,12 +97,14 @@ class CreditRepository(
     /**
      * Records a validated rep in a single Room transaction.
      * Enforces per-exercise and total daily earn caps, and idempotency.
+     * [secondsPerUnitOverride] replaces the exercise's default rate (personalised pay); daily caps still apply.
      * Returns the earned credits awarded (0 if cap reached, already credited, or unknown exercise).
      */
     suspend fun recordValidatedRep(
         sessionId: String,
         repIndex: Int,
-        exerciseType: String = "squats"
+        exerciseType: String = "squats",
+        secondsPerUnitOverride: Int? = null
     ): Int {
         return database.withTransaction {
             val session = sessionDao.getSession(sessionId) ?: return@withTransaction 0
@@ -122,7 +124,8 @@ class CreditRepository(
 
             // Each exercise has its own rate and its own daily cap
             val reward = config.rewardFor(exerciseType)
-            val rate = reward?.secondsPerRep ?: 0
+            // Unknown exercises earn 0 even with an override. The override only replaces the rate.
+            val rate = if (reward == null) 0 else (secondsPerUnitOverride ?: reward.secondsPerRep)
             val exerciseCap = reward?.dailyCapSeconds ?: 0
 
             val remainingTotalCap = maxOf(0, config.dailyTotalEarnCapSeconds - totalEarnedToday)
